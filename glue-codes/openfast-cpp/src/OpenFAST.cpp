@@ -2574,7 +2574,7 @@ void fast::OpenFAST::writeOutputFile(int iTurbLoc, int n_t_global) {
             for (auto iBlade=0; iBlade < nBlades; iBlade++) {
                 int node_bld_start = (1 + iBlade * nBldPts);
                 for (auto i=0; i < nBldPts; i++) {
-                    applyDCMrotation(&velForceNodeData[iTurbLoc][3].orient_force[(node_bld_start + i)*9], &velForceNodeData[iTurbLoc][3].force[(node_bld_start+i)*3], &ld_loc[(node_bld_start-1)*3]);
+                    applyDCMrotation(&velForceNodeData[iTurbLoc][3].orient_force[(node_bld_start + i)*9], &velForceNodeData[iTurbLoc][3].force[(node_bld_start+i)*3], &ld_loc[(node_bld_start-1+i)*3]);
                 }
             }
             for (size_t iDim=0;iDim < 3; iDim++) {
