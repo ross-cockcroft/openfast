@@ -1971,6 +1971,9 @@ void fast::OpenFAST::allocateMemory_preInit() {
         turbineData[iTurb].numForcePtsTwr = globTurbineData[iTurbGlob].numForcePtsTwr;
         turbineData[iTurb].azBlendMean = globTurbineData[iTurbGlob].azBlendMean;
         turbineData[iTurb].azBlendDelta = globTurbineData[iTurbGlob].azBlendDelta;
+        // Was never copied, so nodeClusterType stayed value-initialised to 0 and
+        // the driver could not reach the chord-proportional force-node spacing.
+        turbineData[iTurb].nodeClusterType = globTurbineData[iTurbGlob].nodeClusterType;
 
         velForceNodeData[iTurb].resize(4); // To hold data for 4 time steps
         brFSIData[iTurb].resize(4);
