@@ -1549,6 +1549,20 @@ subroutine SetParameters( InitInp, InputFileData, RotData, p, p_AD, ErrStat, Err
          p%BlTwist(j,k) = RotData%BladeProps(k)%BlTwist(j)
       end do
    end do
+
+   ! Digital-twin per-node force-component scales from the blade file (default 1).
+   call AllocAry(p%BlFnScale, p%NumBlNds, p%numBlades, 'p%BlFnScale', ErrStat2, ErrMsg2 )
+      call SetErrStat(ErrStat2,ErrMsg2,ErrStat,ErrMsg,RoutineName)
+   call AllocAry(p%BlFtScale, p%NumBlNds, p%numBlades, 'p%BlFtScale', ErrStat2, ErrMsg2 )
+      call SetErrStat(ErrStat2,ErrMsg2,ErrStat,ErrMsg,RoutineName)
+      if (ErrStat >= AbortErrLev) return
+
+   do k=1,p%numBlades
+      do j=1,p%NumBlNds
+         p%BlFnScale(j,k) = RotData%BladeProps(k)%BlFnScale(j)
+         p%BlFtScale(j,k) = RotData%BladeProps(k)%BlFtScale(j)
+      end do
+   end do
       
    
   !p%AFI     ! set in call to AFI_Init() [called early because it wants to use the same echo file as AD]
@@ -4111,6 +4125,21 @@ subroutine SetOutputsFromBEMT( p, u, m, y )
          force(1) =  m%BEMT_y%cx(j,k) * q * p%BEMT%chord(j,k)     ! X = normal force per unit length (normal to the plane, not chord) of the jth node in the kth blade
          force(2) = -m%BEMT_y%cy(j,k) * q * p%BEMT%chord(j,k)     ! Y = tangential force per unit length (tangential to the plane, not chord) of the jth node in the kth blade
          force(3) =  m%BEMT_y%cz(j,k) * q * p%BEMT%chord(j,k)     ! Z = axial force per unit length of the jth node in the kth blade
+
+         ! Digital-twin per-node chord-frame force scaling (BlFnScale/BlFtScale,
+         ! optional blade-file columns, default 1.0). Scale chord-normal (Fn) by
+         ! sN and chord-tangential (Ft) by sT in the airfoil frame, then rebuild
+         ! the plane-frame force by rotating with the local twist+pitch angle
+         ! theta (= phi - aoa). This keeps the default BEMMod_2D mesh, the AB1N
+         ! Fn/Ft outputs (via m%X/m%Y), and the external-inflow force-out all
+         ! consistent with the scaled load. Guarded so unscaled nodes stay
+         ! bit-identical. Only the BEMT path is scaled (OLAF/FVW is not patched).
+         if (p%BlFnScale(j,k) /= 1.0_ReKi .or. p%BlFtScale(j,k) /= 1.0_ReKi) then
+            forceAirfoil(1) = forceAirfoil(1) * p%BlFnScale(j,k)
+            forceAirfoil(2) = forceAirfoil(2) * p%BlFtScale(j,k)
+            force(1) =  cos(m%BEMT_u(1)%theta(j,k)) * forceAirfoil(1) + sin(m%BEMT_u(1)%theta(j,k)) * forceAirfoil(2)
+            force(2) = -sin(m%BEMT_u(1)%theta(j,k)) * forceAirfoil(1) + cos(m%BEMT_u(1)%theta(j,k)) * forceAirfoil(2)
+         end if
 
          moment(1)=  m%BEMT_y%Cmx(j,k) * q * p%BEMT%chord(j,k)**2  ! Mx = pitching moment (x-component) per unit length of the jth node in the kth blade
          moment(2)=  m%BEMT_y%Cmy(j,k) * q * p%BEMT%chord(j,k)**2  ! My = pitching moment (y-component) per unit length of the jth node in the kth blade

@@ -1432,11 +1432,11 @@ SUBROUTINE ReadBladeInputs ( ADBlFile, BladeKInputFileData, AeroProjMod, UnEc, c
    INTEGER( IntKi )                          :: UnIn                                            ! Unit number for reading file
    INTEGER(IntKi)                            :: ErrStat2 , IOS                                  ! Temporary Error status
    CHARACTER(ErrMsgLen)                      :: ErrMsg2                                         ! Temporary Err msg
-   INTEGER,         PARAMETER                :: MaxCols = 16
+   INTEGER,         PARAMETER                :: MaxCols = 18
    CHARACTER(NWTC_SizeOfNumWord*(MaxCols+1)) :: Line
    INTEGER(IntKi)                            :: Indx(MaxCols)
-   CHARACTER(8),   PARAMETER                 :: AvailableChanNames(MaxCols) = (/'BLSPN   ', 'BLCRVAC ','BLSWPAC ','BLCRVANG','BLTWIST ','BLCHORD ', 'BLAFID  ', 'T_C     ', 'BLCB    ', 'BLCENBN ','BLCENBT ','BLCPN   ','BLCPT   ','BLCAN   ','BLCAT   ','BLCAM   ' /) ! in upper case only
-   LOGICAL,        PARAMETER                 :: RequiredChanNames( MaxCols) = (/.true.    , .true.    ,.true.    ,.false.   ,.true.    ,.true.    , .true.    , .false.   , .false.   ,.false.   ,.false.   ,.false.   ,.false.   ,.false.   ,.false.   ,.false.   /)
+   CHARACTER(8),   PARAMETER                 :: AvailableChanNames(MaxCols) = (/'BLSPN   ', 'BLCRVAC ','BLSWPAC ','BLCRVANG','BLTWIST ','BLCHORD ', 'BLAFID  ', 'T_C     ', 'BLCB    ', 'BLCENBN ','BLCENBT ','BLCPN   ','BLCPT   ','BLCAN   ','BLCAT   ','BLCAM   ','BLFNSCAL','BLFTSCAL' /) ! in upper case only
+   LOGICAL,        PARAMETER                 :: RequiredChanNames( MaxCols) = (/.true.    , .true.    ,.true.    ,.false.   ,.true.    ,.true.    , .true.    , .false.   , .false.   ,.false.   ,.false.   ,.false.   ,.false.   ,.false.   ,.false.   ,.false.   ,.false.   ,.false.   /)
 
    CHARACTER(*), PARAMETER                   :: RoutineName = 'ReadBladeInputs'
 
@@ -1521,6 +1521,10 @@ SUBROUTINE ReadBladeInputs ( ADBlFile, BladeKInputFileData, AeroProjMod, UnEc, c
       CALL SetErrStat( ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName )
    CALL AllocAry( BladeKInputFileData%BlCam, BladeKInputFileData%NumBlNds, 'BlCam', ErrStat2, ErrMsg2)
       CALL SetErrStat( ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName )
+   CALL AllocAry( BladeKInputFileData%BlFnScale, BladeKInputFileData%NumBlNds, 'BlFnScale', ErrStat2, ErrMsg2)
+      CALL SetErrStat( ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName )
+   CALL AllocAry( BladeKInputFileData%BlFtScale, BladeKInputFileData%NumBlNds, 'BlFtScale', ErrStat2, ErrMsg2)
+      CALL SetErrStat( ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName )
       
       ! Return on error if we didn't allocate space for the next inputs
    IF ( ErrStat >= AbortErrLev ) THEN
@@ -1539,6 +1543,8 @@ SUBROUTINE ReadBladeInputs ( ADBlFile, BladeKInputFileData, AeroProjMod, UnEc, c
    BladeKInputFileData%BlCan   = 0.0_ReKi
    BladeKInputFileData%BlCat   = 0.0_ReKi
    BladeKInputFileData%BlCam   = 0.0_ReKi
+   BladeKInputFileData%BlFnScale = 1.0_ReKi
+   BladeKInputFileData%BlFtScale = 1.0_ReKi
    
    
    ! figure out what columns are specified in this file and in what order:
@@ -1687,6 +1693,16 @@ SUBROUTINE ConvertLineToCols(Line, i, Indx, BladeKInputFileData, ErrStat, ErrMsg
    c=Indx(16)
    IF (c > 0) THEN
       READ( Words(c), *, IOStat=IOS(c) ) BladeKInputFileData%BlCam(I)
+   END IF
+
+   c=Indx(17)
+   IF (c > 0) THEN
+      READ( Words(c), *, IOStat=IOS(c) ) BladeKInputFileData%BlFnScale(I)
+   END IF
+
+   c=Indx(18)
+   IF (c > 0) THEN
+      READ( Words(c), *, IOStat=IOS(c) ) BladeKInputFileData%BlFtScale(I)
    END IF
 
    IF (ANY(IOS /= 0)) THEN

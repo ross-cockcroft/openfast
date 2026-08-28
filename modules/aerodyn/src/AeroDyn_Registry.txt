@@ -135,6 +135,8 @@ typedef	^	AD_BladePropsType	ReKi	BlSwpAC	{:}	-	-	"Sweep at blade node"	m
 typedef	^	AD_BladePropsType	ReKi	BlCrvAng	{:}	-	-	"Curve angle at blade node"	radians
 typedef	^	AD_BladePropsType	ReKi	BlTwist	{:}	-	-	"Twist at blade node"	radians
 typedef	^	AD_BladePropsType	ReKi	BlChord	{:}	-	-	"Chord at blade node"	m
+typedef	^	AD_BladePropsType	ReKi	BlFnScale	{:}	-	-	"Chord-normal (Fn) force scale at blade node"	-
+typedef	^	AD_BladePropsType	ReKi	BlFtScale	{:}	-	-	"Chord-tangential (Ft) force scale at blade node"	-
 typedef	^	AD_BladePropsType	IntKi	BlAFID	{:}	-	-	"ID of Airfoil at blade node"	-
 typedef ^   AD_BladePropsType   ReKi    t_c     {:} -   -   "Thickness to chord ratio at blade node"   -
 typedef ^   AD_BladePropsType   ReKi    BlCb    {:} -   -   "Coefficient of buoyancy at blade node"   -
@@ -312,6 +314,8 @@ typedef	^	RotParameterType	ReKi	TwrDiam	{:}	-	-	"Diameter of tower at node"	m
 typedef	^	RotParameterType	ReKi	TwrCd	{:}	-	-	"Coefficient of drag at tower node"	-
 typedef	^	RotParameterType	ReKi	TwrTI	{:}	-	-	"Turbulence intensity for tower shadow at tower node"	-
 typedef  ^  ^                     ReKi                     BlTwist                         {:}{:}        -         -        "Twist at blade node" radians
+typedef	^	RotParameterType	ReKi	BlFnScale	{:}{:}	-	-	"Chord-normal (Fn) force scale at blade node"	-
+typedef	^	RotParameterType	ReKi	BlFtScale	{:}{:}	-	-	"Chord-tangential (Ft) force scale at blade node"	-
 typedef	^	RotParameterType	ReKi	TwrCb	{:}	-	-	"Coefficient of buoyancy at tower node"	-
 typedef	^	RotParameterType	ReKi	TwrCp	{:}	-	-	"Coefficient of dynamic pressure at tower node"	-
 typedef	^	RotParameterType	ReKi	TwrCa	{:}	-	-	"Coefficient of added mass at tower node"	-

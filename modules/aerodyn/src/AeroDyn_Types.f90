@@ -151,6 +151,8 @@ IMPLICIT NONE
     REAL(ReKi) , DIMENSION(:), ALLOCATABLE  :: BlCrvAng      !< Curve angle at blade node [radians]
     REAL(ReKi) , DIMENSION(:), ALLOCATABLE  :: BlTwist      !< Twist at blade node [radians]
     REAL(ReKi) , DIMENSION(:), ALLOCATABLE  :: BlChord      !< Chord at blade node [m]
+    REAL(ReKi) , DIMENSION(:), ALLOCATABLE  :: BlFnScale      !< Chord-normal (Fn) force scale at blade node [-]
+    REAL(ReKi) , DIMENSION(:), ALLOCATABLE  :: BlFtScale      !< Chord-tangential (Ft) force scale at blade node [-]
     INTEGER(IntKi) , DIMENSION(:), ALLOCATABLE  :: BlAFID      !< ID of Airfoil at blade node [-]
     REAL(ReKi) , DIMENSION(:), ALLOCATABLE  :: t_c      !< Thickness to chord ratio at blade node [-]
     REAL(ReKi) , DIMENSION(:), ALLOCATABLE  :: BlCb      !< Coefficient of buoyancy at blade node [-]
@@ -353,6 +355,8 @@ IMPLICIT NONE
     REAL(ReKi) , DIMENSION(:), ALLOCATABLE  :: TwrCd      !< Coefficient of drag at tower node [-]
     REAL(ReKi) , DIMENSION(:), ALLOCATABLE  :: TwrTI      !< Turbulence intensity for tower shadow at tower node [-]
     REAL(ReKi) , DIMENSION(:,:), ALLOCATABLE  :: BlTwist      !< Twist at blade node [radians]
+    REAL(ReKi) , DIMENSION(:,:), ALLOCATABLE  :: BlFnScale      !< Chord-normal (Fn) force scale at blade node [-]
+    REAL(ReKi) , DIMENSION(:,:), ALLOCATABLE  :: BlFtScale      !< Chord-tangential (Ft) force scale at blade node [-]
     REAL(ReKi) , DIMENSION(:), ALLOCATABLE  :: TwrCb      !< Coefficient of buoyancy at tower node [-]
     REAL(ReKi) , DIMENSION(:), ALLOCATABLE  :: TwrCp      !< Coefficient of dynamic pressure at tower node [-]
     REAL(ReKi) , DIMENSION(:), ALLOCATABLE  :: TwrCa      !< Coefficient of added mass at tower node [-]
@@ -1260,6 +1264,30 @@ subroutine AD_CopyBladePropsType(SrcBladePropsTypeData, DstBladePropsTypeData, C
       end if
       DstBladePropsTypeData%BlChord = SrcBladePropsTypeData%BlChord
    end if
+   if (allocated(SrcBladePropsTypeData%BlFnScale)) then
+      LB(1:1) = lbound(SrcBladePropsTypeData%BlFnScale)
+      UB(1:1) = ubound(SrcBladePropsTypeData%BlFnScale)
+      if (.not. allocated(DstBladePropsTypeData%BlFnScale)) then
+         allocate(DstBladePropsTypeData%BlFnScale(LB(1):UB(1)), stat=ErrStat2)
+         if (ErrStat2 /= 0) then
+            call SetErrStat(ErrID_Fatal, 'Error allocating DstBladePropsTypeData%BlFnScale.', ErrStat, ErrMsg, RoutineName)
+            return
+         end if
+      end if
+      DstBladePropsTypeData%BlFnScale = SrcBladePropsTypeData%BlFnScale
+   end if
+   if (allocated(SrcBladePropsTypeData%BlFtScale)) then
+      LB(1:1) = lbound(SrcBladePropsTypeData%BlFtScale)
+      UB(1:1) = ubound(SrcBladePropsTypeData%BlFtScale)
+      if (.not. allocated(DstBladePropsTypeData%BlFtScale)) then
+         allocate(DstBladePropsTypeData%BlFtScale(LB(1):UB(1)), stat=ErrStat2)
+         if (ErrStat2 /= 0) then
+            call SetErrStat(ErrID_Fatal, 'Error allocating DstBladePropsTypeData%BlFtScale.', ErrStat, ErrMsg, RoutineName)
+            return
+         end if
+      end if
+      DstBladePropsTypeData%BlFtScale = SrcBladePropsTypeData%BlFtScale
+   end if
    if (allocated(SrcBladePropsTypeData%BlAFID)) then
       LB(1:1) = lbound(SrcBladePropsTypeData%BlAFID)
       UB(1:1) = ubound(SrcBladePropsTypeData%BlAFID)
@@ -1407,6 +1435,12 @@ subroutine AD_DestroyBladePropsType(BladePropsTypeData, ErrStat, ErrMsg)
    if (allocated(BladePropsTypeData%BlChord)) then
       deallocate(BladePropsTypeData%BlChord)
    end if
+   if (allocated(BladePropsTypeData%BlFnScale)) then
+      deallocate(BladePropsTypeData%BlFnScale)
+   end if
+   if (allocated(BladePropsTypeData%BlFtScale)) then
+      deallocate(BladePropsTypeData%BlFtScale)
+   end if
    if (allocated(BladePropsTypeData%BlAFID)) then
       deallocate(BladePropsTypeData%BlAFID)
    end if
@@ -1451,6 +1485,8 @@ subroutine AD_PackBladePropsType(RF, Indata)
    call RegPackAlloc(RF, InData%BlCrvAng)
    call RegPackAlloc(RF, InData%BlTwist)
    call RegPackAlloc(RF, InData%BlChord)
+   call RegPackAlloc(RF, InData%BlFnScale)
+   call RegPackAlloc(RF, InData%BlFtScale)
    call RegPackAlloc(RF, InData%BlAFID)
    call RegPackAlloc(RF, InData%t_c)
    call RegPackAlloc(RF, InData%BlCb)
@@ -1479,6 +1515,8 @@ subroutine AD_UnPackBladePropsType(RF, OutData)
    call RegUnpackAlloc(RF, OutData%BlCrvAng); if (RegCheckErr(RF, RoutineName)) return
    call RegUnpackAlloc(RF, OutData%BlTwist); if (RegCheckErr(RF, RoutineName)) return
    call RegUnpackAlloc(RF, OutData%BlChord); if (RegCheckErr(RF, RoutineName)) return
+   call RegUnpackAlloc(RF, OutData%BlFnScale); if (RegCheckErr(RF, RoutineName)) return
+   call RegUnpackAlloc(RF, OutData%BlFtScale); if (RegCheckErr(RF, RoutineName)) return
    call RegUnpackAlloc(RF, OutData%BlAFID); if (RegCheckErr(RF, RoutineName)) return
    call RegUnpackAlloc(RF, OutData%t_c); if (RegCheckErr(RF, RoutineName)) return
    call RegUnpackAlloc(RF, OutData%BlCb); if (RegCheckErr(RF, RoutineName)) return
@@ -3456,6 +3494,30 @@ subroutine AD_CopyRotParameterType(SrcRotParameterTypeData, DstRotParameterTypeD
       end if
       DstRotParameterTypeData%BlTwist = SrcRotParameterTypeData%BlTwist
    end if
+   if (allocated(SrcRotParameterTypeData%BlFnScale)) then
+      LB(1:2) = lbound(SrcRotParameterTypeData%BlFnScale)
+      UB(1:2) = ubound(SrcRotParameterTypeData%BlFnScale)
+      if (.not. allocated(DstRotParameterTypeData%BlFnScale)) then
+         allocate(DstRotParameterTypeData%BlFnScale(LB(1):UB(1),LB(2):UB(2)), stat=ErrStat2)
+         if (ErrStat2 /= 0) then
+            call SetErrStat(ErrID_Fatal, 'Error allocating DstRotParameterTypeData%BlFnScale.', ErrStat, ErrMsg, RoutineName)
+            return
+         end if
+      end if
+      DstRotParameterTypeData%BlFnScale = SrcRotParameterTypeData%BlFnScale
+   end if
+   if (allocated(SrcRotParameterTypeData%BlFtScale)) then
+      LB(1:2) = lbound(SrcRotParameterTypeData%BlFtScale)
+      UB(1:2) = ubound(SrcRotParameterTypeData%BlFtScale)
+      if (.not. allocated(DstRotParameterTypeData%BlFtScale)) then
+         allocate(DstRotParameterTypeData%BlFtScale(LB(1):UB(1),LB(2):UB(2)), stat=ErrStat2)
+         if (ErrStat2 /= 0) then
+            call SetErrStat(ErrID_Fatal, 'Error allocating DstRotParameterTypeData%BlFtScale.', ErrStat, ErrMsg, RoutineName)
+            return
+         end if
+      end if
+      DstRotParameterTypeData%BlFtScale = SrcRotParameterTypeData%BlFtScale
+   end if
    if (allocated(SrcRotParameterTypeData%TwrCb)) then
       LB(1:1) = lbound(SrcRotParameterTypeData%TwrCb)
       UB(1:1) = ubound(SrcRotParameterTypeData%TwrCb)
@@ -3839,6 +3901,12 @@ subroutine AD_DestroyRotParameterType(RotParameterTypeData, ErrStat, ErrMsg)
    if (allocated(RotParameterTypeData%BlTwist)) then
       deallocate(RotParameterTypeData%BlTwist)
    end if
+   if (allocated(RotParameterTypeData%BlFnScale)) then
+      deallocate(RotParameterTypeData%BlFnScale)
+   end if
+   if (allocated(RotParameterTypeData%BlFtScale)) then
+      deallocate(RotParameterTypeData%BlFtScale)
+   end if
    if (allocated(RotParameterTypeData%TwrCb)) then
       deallocate(RotParameterTypeData%TwrCb)
    end if
@@ -3948,6 +4016,8 @@ subroutine AD_PackRotParameterType(RF, Indata)
    call RegPackAlloc(RF, InData%TwrCd)
    call RegPackAlloc(RF, InData%TwrTI)
    call RegPackAlloc(RF, InData%BlTwist)
+   call RegPackAlloc(RF, InData%BlFnScale)
+   call RegPackAlloc(RF, InData%BlFtScale)
    call RegPackAlloc(RF, InData%TwrCb)
    call RegPackAlloc(RF, InData%TwrCp)
    call RegPackAlloc(RF, InData%TwrCa)
@@ -4052,6 +4122,8 @@ subroutine AD_UnPackRotParameterType(RF, OutData)
    call RegUnpackAlloc(RF, OutData%TwrCd); if (RegCheckErr(RF, RoutineName)) return
    call RegUnpackAlloc(RF, OutData%TwrTI); if (RegCheckErr(RF, RoutineName)) return
    call RegUnpackAlloc(RF, OutData%BlTwist); if (RegCheckErr(RF, RoutineName)) return
+   call RegUnpackAlloc(RF, OutData%BlFnScale); if (RegCheckErr(RF, RoutineName)) return
+   call RegUnpackAlloc(RF, OutData%BlFtScale); if (RegCheckErr(RF, RoutineName)) return
    call RegUnpackAlloc(RF, OutData%TwrCb); if (RegCheckErr(RF, RoutineName)) return
    call RegUnpackAlloc(RF, OutData%TwrCp); if (RegCheckErr(RF, RoutineName)) return
    call RegUnpackAlloc(RF, OutData%TwrCa); if (RegCheckErr(RF, RoutineName)) return
