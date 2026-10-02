@@ -58,6 +58,7 @@ private
 
    public :: UA_ReInit
    public :: UA_InitStates_AllNodes ! used for AD linearization initialization
+   public :: Get_Alpha34
 
    real(ReKi), parameter         :: Gonzalez_factor = 0.2_ReKi     ! this factor, proposed by Gonzalez (for "all" models) is used to modify Cc to account for negative values seen at f=0 (see Eqn 1.40)
    real(ReKi), parameter, public :: UA_u_min = 0.01_ReKi           ! m/s; used to provide a minimum value so UA equations don't blow up (this should be much lower than range where UA is turned off)

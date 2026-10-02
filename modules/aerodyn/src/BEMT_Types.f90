@@ -70,6 +70,8 @@ IMPLICIT NONE
     REAL(ReKi) , DIMENSION(:,:), ALLOCATABLE  :: rLocal      !< Radial distance to blade node from the center of rotation, measured in the rotor plane, needed for DBEMT [m]
     REAL(ReKi) , DIMENSION(:), ALLOCATABLE  :: rTipFix      !< Nominally the coned rotor diameter (without prebend), used to align with Bladed calculations [m]
     LOGICAL  :: UA_Flag = .false.      !< logical flag indicating whether to use UnsteadyAero [-]
+    LOGICAL  :: AoA34 = .false.      !< Look up the steady airfoil coefficients at the 3/4-chord angle of attack [-]
+    REAL(ReKi)  :: d_34_to_ac = 0.0_ReKi      !< Distance from the 3/4-chord point to the aerodynamic center, in chords [-]
     INTEGER(IntKi)  :: DBEMT_Mod = 0_IntKi      !< DBEMT model.  1 = constant tau1, 2 = time dependent tau1 [-]
     REAL(ReKi)  :: tau1_const = 0.0_ReKi      !< DBEMT time constant (when DBEMT_Mod=1) [s]
     REAL(ReKi)  :: yawCorrFactor = 0.0_ReKi      !< constant used in Pitt/Peters skewed wake model (default is 15*pi/32) [-]
@@ -167,6 +169,8 @@ IMPLICIT NONE
     TYPE(UA_ParameterType)  :: UA      !< parameters for UnsteadyAero [-]
     TYPE(DBEMT_ParameterType)  :: DBEMT      !< parameters for DBEMT [-]
     LOGICAL  :: UA_Flag = .false.      !< logical flag indicating whether to use UnsteadyAero [-]
+    LOGICAL  :: AoA34 = .false.      !< Look up the steady airfoil coefficients at the 3/4-chord angle of attack [-]
+    REAL(ReKi)  :: d_34_to_ac = 0.0_ReKi      !< Distance from the 3/4-chord point to the aerodynamic center, in chords [-]
     INTEGER(IntKi)  :: DBEMT_Mod = 0_IntKi      !< DBEMT Model.  0 = constant tau1, 1 = time dependent tau1 [-]
     REAL(ReKi)  :: yawCorrFactor = 0.0_ReKi      !< constant used in Pitt/Peters skewed wake model (default is 15*pi/32) [-]
     LOGICAL , DIMENSION(:,:), ALLOCATABLE  :: FixedInductions      !< flag to determine if BEM inductions should be fixed and not modified by dbemt or skewed wake [-]
@@ -387,6 +391,8 @@ subroutine BEMT_CopyInitInput(SrcInitInputData, DstInitInputData, CtrlCode, ErrS
       DstInitInputData%rTipFix = SrcInitInputData%rTipFix
    end if
    DstInitInputData%UA_Flag = SrcInitInputData%UA_Flag
+   DstInitInputData%AoA34 = SrcInitInputData%AoA34
+   DstInitInputData%d_34_to_ac = SrcInitInputData%d_34_to_ac
    DstInitInputData%DBEMT_Mod = SrcInitInputData%DBEMT_Mod
    DstInitInputData%tau1_const = SrcInitInputData%tau1_const
    DstInitInputData%yawCorrFactor = SrcInitInputData%yawCorrFactor
@@ -461,6 +467,8 @@ subroutine BEMT_PackInitInput(RF, Indata)
    call RegPackAlloc(RF, InData%rLocal)
    call RegPackAlloc(RF, InData%rTipFix)
    call RegPack(RF, InData%UA_Flag)
+   call RegPack(RF, InData%AoA34)
+   call RegPack(RF, InData%d_34_to_ac)
    call RegPack(RF, InData%DBEMT_Mod)
    call RegPack(RF, InData%tau1_const)
    call RegPack(RF, InData%yawCorrFactor)
@@ -503,6 +511,8 @@ subroutine BEMT_UnPackInitInput(RF, OutData)
    call RegUnpackAlloc(RF, OutData%rLocal); if (RegCheckErr(RF, RoutineName)) return
    call RegUnpackAlloc(RF, OutData%rTipFix); if (RegCheckErr(RF, RoutineName)) return
    call RegUnpack(RF, OutData%UA_Flag); if (RegCheckErr(RF, RoutineName)) return
+   call RegUnpack(RF, OutData%AoA34); if (RegCheckErr(RF, RoutineName)) return
+   call RegUnpack(RF, OutData%d_34_to_ac); if (RegCheckErr(RF, RoutineName)) return
    call RegUnpack(RF, OutData%DBEMT_Mod); if (RegCheckErr(RF, RoutineName)) return
    call RegUnpack(RF, OutData%tau1_const); if (RegCheckErr(RF, RoutineName)) return
    call RegUnpack(RF, OutData%yawCorrFactor); if (RegCheckErr(RF, RoutineName)) return
@@ -1295,6 +1305,8 @@ subroutine BEMT_CopyParam(SrcParamData, DstParamData, CtrlCode, ErrStat, ErrMsg)
    call SetErrStat(ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName)
    if (ErrStat >= AbortErrLev) return
    DstParamData%UA_Flag = SrcParamData%UA_Flag
+   DstParamData%AoA34 = SrcParamData%AoA34
+   DstParamData%d_34_to_ac = SrcParamData%d_34_to_ac
    DstParamData%DBEMT_Mod = SrcParamData%DBEMT_Mod
    DstParamData%yawCorrFactor = SrcParamData%yawCorrFactor
    if (allocated(SrcParamData%FixedInductions)) then
@@ -1392,6 +1404,8 @@ subroutine BEMT_PackParam(RF, Indata)
    call UA_PackParam(RF, InData%UA) 
    call DBEMT_PackParam(RF, InData%DBEMT) 
    call RegPack(RF, InData%UA_Flag)
+   call RegPack(RF, InData%AoA34)
+   call RegPack(RF, InData%d_34_to_ac)
    call RegPack(RF, InData%DBEMT_Mod)
    call RegPack(RF, InData%yawCorrFactor)
    call RegPackAlloc(RF, InData%FixedInductions)
@@ -1435,6 +1449,8 @@ subroutine BEMT_UnPackParam(RF, OutData)
    call UA_UnpackParam(RF, OutData%UA) ! UA 
    call DBEMT_UnpackParam(RF, OutData%DBEMT) ! DBEMT 
    call RegUnpack(RF, OutData%UA_Flag); if (RegCheckErr(RF, RoutineName)) return
+   call RegUnpack(RF, OutData%AoA34); if (RegCheckErr(RF, RoutineName)) return
+   call RegUnpack(RF, OutData%d_34_to_ac); if (RegCheckErr(RF, RoutineName)) return
    call RegUnpack(RF, OutData%DBEMT_Mod); if (RegCheckErr(RF, RoutineName)) return
    call RegUnpack(RF, OutData%yawCorrFactor); if (RegCheckErr(RF, RoutineName)) return
    call RegUnpackAlloc(RF, OutData%FixedInductions); if (RegCheckErr(RF, RoutineName)) return
