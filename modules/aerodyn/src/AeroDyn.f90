@@ -4955,6 +4955,8 @@ SUBROUTINE Init_BEMTmodule( InputFileData, RotInputFileData, u_AD, u, p, p_AD, x
    InitInp%useTipLoss       = InputFileData%TipLoss
    InitInp%useHubLoss       = InputFileData%HubLoss
    InitInp%useInduction     = InputFileData%Wake_Mod == WakeMod_BEMT
+   InitInp%AoA34            = InputFileData%AoA34
+   InitInp%d_34_to_ac       = InputFileData%UA_Init%d_34_to_ac
    InitInp%useTanInd        = InputFileData%TanInd
    InitInp%useAIDrag        = InputFileData%AIDrag        
    InitInp%useTIDrag        = InputFileData%TIDrag  

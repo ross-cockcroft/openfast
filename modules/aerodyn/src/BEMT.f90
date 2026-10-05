@@ -182,6 +182,8 @@ subroutine BEMT_SetParameters( InitInp, p, errStat, errMsg )
    p%numBladeNodes  = InitInp%numBladeNodes 
    p%numBlades      = InitInp%numBlades    
    p%UA_Flag        = InitInp%UA_Flag   
+   p%AoA34          = InitInp%AoA34
+   p%d_34_to_ac     = InitInp%d_34_to_ac
    p%DBEMT_Mod      = InitInp%DBEMT_Mod
    p%BEM_Mod        = InitInp%BEM_Mod
    !call WrScr('>>>> BEM_Mod '//trim(num2lstr(p%BEM_Mod)))
@@ -1297,6 +1299,7 @@ subroutine BEMT_CalcOutput( t, u, p, x, xd, z, OtherState, AFInfo, y, m, errStat
    character(*), parameter                        :: RoutineName = 'BEMT_CalcOutput'
    
    type(AFI_OutputType)                           :: AFI_interp
+   real(ReKi)                                     :: AOA_lookup
 
          ! Initialize some output values
    errStat = ErrID_None
@@ -1370,7 +1373,12 @@ subroutine BEMT_CalcOutput( t, u, p, x, xd, z, OtherState, AFInfo, y, m, errStat
       do j = 1,p%numBlades ! Loop through all blades
          do i = 1,p%numBladeNodes ! Loop through the blade nodes / elements
          
-            call AFI_ComputeAirfoilCoefs( y%AOA(i,j), y%Re(i,j), u%UserProp(i,j),  AFInfo(p%AFindx(i,j)), AFI_interp, errStat2, errMsg2 )
+            if (p%AoA34) then
+               AOA_lookup = Get_Alpha34(m%u_UA(i,j,InputIndex)%v_ac, m%u_UA(i,j,InputIndex)%omega, p%d_34_to_ac*p%chord(i,j))
+            else
+               AOA_lookup = y%AOA(i,j)
+            end if
+            call AFI_ComputeAirfoilCoefs( AOA_lookup, y%Re(i,j), u%UserProp(i,j),  AFInfo(p%AFindx(i,j)), AFI_interp, errStat2, errMsg2 )
                if (ErrStat2 /= ErrID_None) then
                   call SetErrStat(ErrStat2,ErrMsg2,ErrStat,ErrMsg,RoutineName//trim(NodeText(i,j)))
                   if (errStat >= AbortErrLev) return
