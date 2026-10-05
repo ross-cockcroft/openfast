@@ -2224,6 +2224,10 @@ subroutine InitMappings_SrvD(Mappings, SrcMod, DstMod, Turbine, ErrStat, ErrMsg)
 
       call MapCustom(Mappings, Custom_IfW_to_SrvD, SrcMod=SrcMod, DstMod=DstMod)
 
+   case (Module_ExtInfw)
+
+      call MapCustom(Mappings, Custom_ExtInfw_to_SrvD, SrcMod=SrcMod, DstMod=DstMod)
+
    case (Module_SD)
 
       ! Substructure Structural Controller
