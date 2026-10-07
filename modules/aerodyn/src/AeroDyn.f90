@@ -270,6 +270,7 @@ subroutine AD_Init( InitInp, u, p, x, xd, z, OtherState, y, m, Interval, InitOut
    integer(IntKi)                              :: nRotors       ! Number of rotors
    integer(IntKi), allocatable, dimension(:)   :: NumBlades     ! Number of blades per rotor
    integer(IntKi) , allocatable, dimension(:)  :: AeroProjMod   ! AeroProjMod per rotor
+   logical                                     :: sectionFrame  ! BEM_Mod 3: project in the blade section frame
    logical , allocatable, dimension(:)         :: calcCrvAngle  ! whether the curve angle should be calculated
 
    character(*), parameter                     :: RoutineName = 'AD_Init'
@@ -353,17 +354,30 @@ subroutine AD_Init( InitInp, u, p, x, xd, z, OtherState, y, m, Interval, InitOut
       if (Failed()) return;
 
    ! --- "Automatic handling of AeroProjMod
+   ! BEM_Mod 3 selects the lifting-line projection: velocities and loads in the frame of the deformed blade section.
+   ! No momentum balance is defined in that frame, so it is allowed without induction only.
+   sectionFrame = InputFileData%BEM_Mod == 3
+   if (sectionFrame) then
+      if (InputFileData%Wake_Mod /= WakeMod_none) then
+         call Fatal('Input `BEM_Mod` 3 (blade section frame) needs `Wake_Mod` 0.'); return
+      endif
+      InputFileData%BEM_Mod = BEMMod_2D
+   endif
    do iR = 1, nRotors
       if (AeroProjMod(iR) == -1) then
          if (InputFileData%Wake_Mod /= WakeMod_BEMT) then
             ! For BEMT, we don't throw a warning
             call WrScr('[INFO] Using the input file input `BEM_Mod` to match BEM coordinate system outputs')
          endif
-         select case (InputFileData%BEM_Mod)
-         case (BEMMod_2D); AeroProjMod(ir) = APM_BEM_NoSweepPitchTwist
-         case (BEMMod_3D); AeroProjMod(ir) = APM_BEM_Polar
-         case default;     call Fatal('Input `BEM_Mod` not supported: '//trim(num2lstr(InputFileData%BEM_Mod))); return
-         end select
+         if (sectionFrame) then
+            AeroProjMod(ir) = APM_LiftingLine
+         else
+            select case (InputFileData%BEM_Mod)
+            case (BEMMod_2D); AeroProjMod(ir) = APM_BEM_NoSweepPitchTwist
+            case (BEMMod_3D); AeroProjMod(ir) = APM_BEM_Polar
+            case default;     call Fatal('Input `BEM_Mod` not supported: '//trim(num2lstr(InputFileData%BEM_Mod))); return
+            end select
+         endif
 
       endif
    enddo
@@ -3636,7 +3650,14 @@ subroutine SetInputsForBEMT(p, p_AD, u, RotInflow, m, indx, errStat, errMsg)
       do j=1,p%NumBlNds
          ! inputs for CUA (and CDBEMT):
          ! TODO Here we should take the rotation in the airfoil coordinate system instead of the "l" or "w" system
-         m%BEMT_u(indx)%omega_z(j,k)       = dot_product( u%BladeMotion(k)%RotationVel(   :,j), m%orientationAnnulus(3,:,j,k) ) ! rotation of no-sweep-pitch coordinate system around z of the jth node in the kth blade
+         if (p_AD%UA_Flag) then
+            m%BEMT_u(indx)%omega_z(j,k)    = dot_product( u%BladeMotion(k)%RotationVel(   :,j), m%orientationAnnulus(3,:,j,k) ) ! rotation of no-sweep-pitch coordinate system around z of the jth node in the kth blade
+         else
+            ! The quasi-steady lookup at the 3/4-chord angle (AoA34) has no unsteady pitch damping. It takes the rotation
+            ! of the rotor only, which is the curved-blade term of Li et al. (2022), and leaves out the elastic rotation
+            ! rate of the blade, which makes a torsionally flexible blade unstable in this lookup.
+            m%BEMT_u(indx)%omega_z(j,k)    = dot_product( u%HubMotion%RotationVel(:,1), m%orientationAnnulus(3,:,j,k) )
+         endif
          
       end do !j=nodes
    end do !k=blades
