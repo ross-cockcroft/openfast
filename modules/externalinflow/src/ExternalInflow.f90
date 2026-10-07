@@ -608,6 +608,11 @@ SUBROUTINE SetExtInfwForces(p_FAST, u_AD, y_AD, ExtInfw, ErrStat, ErrMsg)
       END DO
    endif
 
+   DO K = 1,ExtInfw%p%NMappings
+      ExtInfw%m%ActForceMotionsPoints(k)%RemapFlag = .false.
+      ExtInfw%m%ActForceLoadsPoints(k)%RemapFlag   = .false.
+   END DO
+
 contains
    logical function Failed()
       CALL SetErrStat( ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName )
