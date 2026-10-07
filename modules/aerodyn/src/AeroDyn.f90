@@ -3650,7 +3650,14 @@ subroutine SetInputsForBEMT(p, p_AD, u, RotInflow, m, indx, errStat, errMsg)
       do j=1,p%NumBlNds
          ! inputs for CUA (and CDBEMT):
          ! TODO Here we should take the rotation in the airfoil coordinate system instead of the "l" or "w" system
-         m%BEMT_u(indx)%omega_z(j,k)       = dot_product( u%BladeMotion(k)%RotationVel(   :,j), m%orientationAnnulus(3,:,j,k) ) ! rotation of no-sweep-pitch coordinate system around z of the jth node in the kth blade
+         if (p_AD%UA_Flag) then
+            m%BEMT_u(indx)%omega_z(j,k)    = dot_product( u%BladeMotion(k)%RotationVel(   :,j), m%orientationAnnulus(3,:,j,k) ) ! rotation of no-sweep-pitch coordinate system around z of the jth node in the kth blade
+         else
+            ! The quasi-steady lookup at the 3/4-chord angle (AoA34) has no unsteady pitch damping. It takes the rotation
+            ! of the rotor only, which is the curved-blade term of Li et al. (2022), and leaves out the elastic rotation
+            ! rate of the blade, which makes a torsionally flexible blade unstable in this lookup.
+            m%BEMT_u(indx)%omega_z(j,k)    = dot_product( u%HubMotion%RotationVel(:,1), m%orientationAnnulus(3,:,j,k) )
+         endif
          
       end do !j=nodes
    end do !k=blades
