@@ -1137,6 +1137,13 @@ class InputReader_OpenFAST(object):
         else:
             f.seek(file_pos)
 
+        file_pos = f.tell()
+        line = f.readline()
+        if 'UAShedEffect' in line:
+            self.fst_vt['AeroDyn']['UAShedEffect']         = bool_read(line.split()[0])
+        else:
+            f.seek(file_pos)
+
 
         # Airfoil Information
         f.readline()

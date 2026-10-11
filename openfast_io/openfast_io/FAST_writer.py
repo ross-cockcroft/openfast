@@ -1023,6 +1023,8 @@ class InputWriter_OpenFAST(object):
         if 'UAStartRad' in self.fst_vt['AeroDyn'] and 'UAEndRad' in self.fst_vt['AeroDyn']:
             f.write('{:<22} {:<11} {:}'.format(self.fst_vt['AeroDyn']['UAStartRad'], 'UAStartRad', '- Starting radius for dynamic stall (fraction of rotor radius [0.0,1.0]) [used only when UA_Mod>0; if line is missing UAStartRad=0]\n'))
             f.write('{:<22} {:<11} {:}'.format(self.fst_vt['AeroDyn']['UAEndRad'], 'UAEndRad', '- Ending radius for dynamic stall (fraction of rotor radius [0.0,1.0]) [used only when UA_Mod>0; if line is missing UAEndRad=1]\n'))
+        if 'UAShedEffect' in self.fst_vt['AeroDyn']:
+            f.write('{!s:<22} {:<11} {:}'.format(self.fst_vt['AeroDyn']['UAShedEffect'], 'UAShedEffect', '- Include the lag from shed vorticity in the unsteady airfoil model, False when the inflow already contains it (flag) [used only when UA_Mod is 2 to 5 and Wake_Mod is not 3, True when the line is missing]\n'))
         f.write('======  Airfoil Information =========================================================================\n')
         f.write('{:<22d} {:<11} {:}'.format(self.fst_vt['AeroDyn']['AFTabMod'], 'AFTabMod', '- Interpolation method for multiple airfoil tables {1=1D interpolation on AoA (first table only); 2=2D interpolation on AoA and Re; 3=2D interpolation on AoA and UserProp} (-)\n'))
         f.write('{:<22d} {:<11} {:}'.format(self.fst_vt['AeroDyn']['InCol_Alfa'], 'InCol_Alfa', '- The column in the airfoil tables that contains the angle of attack (-)\n'))

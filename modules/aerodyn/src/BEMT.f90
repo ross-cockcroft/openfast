@@ -142,8 +142,6 @@ subroutine BEMT_Set_UA_InitData( InitInp, interval, Init_UA_Data, errStat, errMs
                
    Init_UA_Data%numBlades       = InitInp%numBlades 
    Init_UA_Data%nNodesPerBlade  = InitInp%numBladeNodes
-   
-   Init_UA_Data%ShedEffect      = .true. ! This should be true when coupled to BEM
 
 end subroutine BEMT_Set_UA_InitData
 
