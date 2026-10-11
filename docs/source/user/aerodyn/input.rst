@@ -383,6 +383,20 @@ omitted from the input file, ``UAEndRad`` will default to 1 (the blade tip).
 All blade nodes that are located at a rotor radius greater than ``UAEndRad`` will have
 unsteady aerodynamics turned off for the entire simulation.
 
+``UAShedEffect`` determines whether the unsteady airfoil aerodynamics model
+includes the lag of the circulatory lift caused by shed vorticity. Set it to
+FALSE when the inflow passed to AeroDyn already contains the induction of the
+shed vorticity, as it does when a flow solver that resolves the wake supplies
+the velocity at the blade nodes. With FALSE the lag states are held at zero
+(the deficiency functions of ``UA_Mod=2`` and ``UA_Mod=3``, the downwash memory
+states ``x1`` and ``x2`` of ``UA_Mod=4`` and ``UA_Mod=5``) and the effective
+angle of attack is the angle of attack at the 3/4 chord. The dynamic-stall
+states are unchanged. If this line is
+omitted from the input file, ``UAShedEffect`` will default to TRUE. The line is
+not used when ``Wake_Mod=3``, because OLAF models the shed vorticity and always
+runs the unsteady model without the lag, and it has no effect when ``UA_Mod`` is
+0, 6 or 7.
+
 
 .. _airfoil_information:
 

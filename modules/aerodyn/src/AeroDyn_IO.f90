@@ -979,6 +979,8 @@ SUBROUTINE ParsePrimaryFileInfo( PriPath, InitInp, InputFile, RootName, NumBlade
       ! UAEndRad - Ending radius for dynamic stall (fraction of rotor radius) [used only when AFAeroMod=2]:
    call ParseVar( FileInfo_In, CurLine, "UAEndRad", InputFileData%UAEndRad, ErrStat2, ErrMsg2, UnEc )
       if (ErrStat2>= AbortErrLev) InputFileData%UAEndRad = 1.0_ReKi
+   call ParseVar( FileInfo_In, CurLine, "UAShedEffect", InputFileData%UA_Init%ShedEffect, ErrStat2, ErrMsg2, UnEc )
+      if (ErrStat2>= AbortErrLev) InputFileData%UA_Init%ShedEffect = .true.
 
    !======  Airfoil Information =========================================================================
    if ( InputFileData%Echo )   WRITE(UnEc, '(A)') FileInfo_In%Lines(CurLine)    ! Write section break to echo
@@ -2042,6 +2044,15 @@ SUBROUTINE AD_PrintSum( InputFileData, p, p_AD, u, y, NumBlades, BladeInputFileD
    ! UAStartRad, UAEndRad
    WRITE (UnSu,"( 2X, F11.5,2X,A,T30,' - ',A )") InputFileData%UAStartRad, 'UAStartRad', 'Starting blade radius fraction for UA models (-)'  ! compare with Ec_ReFrmt format statement
    WRITE (UnSu,"( 2X, F11.5,2X,A,T30,' - ',A )") InputFileData%UAEndRad,    'UAEndRad', 'Ending blade radius fraction for UA models (-)'
+
+   if (InputFileData%Wake_Mod == WakeMod_FVW) then
+      Msg = 'No, OLAF models the shed vorticity'
+   elseif (InputFileData%UA_Init%ShedEffect) then
+      Msg = 'Yes'
+   else
+      Msg = 'No, the inflow is taken to contain it'
+   end if
+   WRITE (UnSu,Ec_LgFrmt) InputFileData%UA_Init%ShedEffect .and. InputFileData%Wake_Mod /= WakeMod_FVW, 'UAShedEffect', 'Lag from shed vorticity in the UA models? '//TRIM(Msg)
 
    
    WRITE (UnSu,'(A)') '======  Outputs  ===================================================================================='
