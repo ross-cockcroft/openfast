@@ -28,6 +28,7 @@ MODULE FAST_Data
                         FAST_Store_SubStep_T, &
                         FAST_UpdateStates_T, &
                         FAST_WriteOutput_T, &
+                        FAST_WriteSubstepOutput_T, &
                         FillOutputAry_T
 
    IMPLICIT  NONE
@@ -1221,6 +1222,27 @@ subroutine FAST_CFD_WriteOutput(iTurb_c, ErrStat_c, ErrMsg_c) BIND (C, NAME='FAS
    ErrMsg_c  = TRANSFER( ErrMsg//C_NULL_CHAR, ErrMsg_c )
 
 end subroutine FAST_CFD_WriteOutput
+!==================================================================================================================================
+subroutine FAST_CFD_WriteSubstepOutput(iTurb_c, ErrStat_c, ErrMsg_c) BIND (C, NAME='FAST_CFD_WriteSubstepOutput')
+   IMPLICIT NONE
+#ifndef IMPLICIT_DLLEXPORT
+!DEC$ ATTRIBUTES DLLEXPORT :: FAST_CFD_WriteSubstepOutput
+!GCC$ ATTRIBUTES DLLEXPORT :: FAST_CFD_WriteSubstepOutput
+#endif
+   INTEGER(C_INT),         INTENT(IN   ) :: iTurb_c
+   INTEGER(C_INT),         INTENT(  OUT) :: ErrStat_c
+   CHARACTER(KIND=C_CHAR), INTENT(  OUT) :: ErrMsg_c(IntfStrLen)
+   integer(IntKi)                        :: iTurb
+
+   iTurb = int(iTurb_c,IntKi) + 1
+
+   CALL FAST_WriteSubstepOutput_T( t_initial, n_t_global, Turbine(iTurb), ErrStat, ErrMsg )
+
+   ErrStat_c = ErrStat
+   ErrMsg = TRIM(ErrMsg)//C_NULL_CHAR
+   ErrMsg_c  = TRANSFER( ErrMsg//C_NULL_CHAR, ErrMsg_c )
+
+end subroutine FAST_CFD_WriteSubstepOutput
 !==================================================================================================================================
 subroutine FAST_CFD_Step(iTurb_c, ErrStat_c, ErrMsg_c) BIND (C, NAME='FAST_CFD_Step')
    IMPLICIT NONE

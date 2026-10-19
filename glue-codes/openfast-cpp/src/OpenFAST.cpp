@@ -1358,6 +1358,13 @@ void fast::OpenFAST::step(double ss_time) {
 
     }
 
+    if (firstPass_ && ss_time < 1.0) {
+        for (int iTurb=0; iTurb < nTurbinesProc; iTurb++) {
+            FAST_CFD_WriteSubstepOutput(&iTurb, &ErrStat, ErrMsg);
+            checkError(ErrStat, ErrMsg);
+        }
+    }
+
 }
 
 void fast::OpenFAST::step(bool writeFiles) {

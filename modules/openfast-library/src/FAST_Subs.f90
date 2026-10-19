@@ -57,6 +57,8 @@ MODULE FAST_Subs
 
    IMPLICIT NONE
 
+   LOGICAL, SAVE, PRIVATE :: DT_Out_FromFile = .FALSE.
+
 CONTAINS
 !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ! INITIALIZATION ROUTINES
@@ -1883,8 +1885,10 @@ SUBROUTINE FAST_Init( p, m_FAST, y_FAST, t_initial, InputFile, ErrStat, ErrMsg, 
       IF (DTdriver == -1.0_DbKi) THEN
          ! DTdriver wasn't set, so don't use it
       ELSE IF (  ABS( NINT(DTdriver/p%DT) * p%DT - DTdriver ) .lt. 0.001 ) THEN
-         p%DT_Out = NINT(DTdriver/p%DT) * p%DT
-         p%n_DT_Out = NINT(DTdriver/p%DT)
+         IF ( .NOT. ( DT_Out_FromFile .AND. p%n_DT_Out >= 1 .AND. MOD( NINT(DTdriver/p%DT), MAX(p%n_DT_Out, 1) ) == 0 ) ) THEN
+            p%DT_Out = NINT(DTdriver/p%DT) * p%DT
+            p%n_DT_Out = NINT(DTdriver/p%DT)
+         END IF
       ELSE
          CALL SetErrStat( ErrID_Fatal, 'DTdriver specified '//TRIM ( Num2LStr( DTdriver ) )//' is not an integral multiple of FAST time step '//TRIM ( Num2LStr( p%DT ) ), ErrStat, ErrMsg, RoutineName )
       END IF
@@ -3204,6 +3208,7 @@ SUBROUTINE FAST_ReadPrimaryFile( InputFile, p, m_FAST, OverrideAbortErrLev, ErrS
       CALL Conv2UC( Line )
       IF ( INDEX(Line, "DEFAULT" ) == 1 ) THEN
          p%DT_Out = p%DT
+         DT_Out_FromFile = .FALSE.
       ELSE
          ! If it's not "default", read this variable; otherwise use the value in p%DT
          READ( Line, *, IOSTAT=IOS) p%DT_Out
@@ -3213,6 +3218,7 @@ SUBROUTINE FAST_ReadPrimaryFile( InputFile, p, m_FAST, OverrideAbortErrLev, ErrS
                call cleanup()
                RETURN
             end if
+         DT_Out_FromFile = .TRUE.
       END IF
 
       p%n_DT_Out = NINT( p%DT_Out / p%DT )
@@ -5295,6 +5301,23 @@ SUBROUTINE FAST_WriteOutput_T(t_initial, n_t_global, Turbine, ErrStat, ErrMsg )
    end if
 
 END SUBROUTINE FAST_WriteOutput_T
+!----------------------------------------------------------------------------------------------------------------------------------
+SUBROUTINE FAST_WriteSubstepOutput_T(t_initial, n_t_global, Turbine, ErrStat, ErrMsg )
+
+   REAL(DbKi),               INTENT(IN   ) :: t_initial
+   INTEGER(IntKi),           INTENT(IN   ) :: n_t_global
+   TYPE(FAST_TurbineType),   INTENT(INOUT) :: Turbine
+   INTEGER(IntKi),           INTENT(  OUT) :: ErrStat
+   CHARACTER(*),             INTENT(  OUT) :: ErrMsg
+
+   ErrStat = ErrID_None
+   ErrMsg  = ""
+
+   IF ( .NOT. Turbine%y_FAST%WriteThisStep ) RETURN
+
+   CALL FAST_WriteOutput_T( t_initial, n_t_global, Turbine, ErrStat, ErrMsg )
+
+END SUBROUTINE FAST_WriteSubstepOutput_T
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! ROUTINES TO OUTPUT WRITE DATA TO FILE AT EACH REQUSTED TIME STEP
