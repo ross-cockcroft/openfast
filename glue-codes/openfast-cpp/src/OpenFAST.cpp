@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cassert>
 #include <array>
+#include <utility>
 
 inline void check_nc_error(int code, std::string msg) {
     if (code != 0)
@@ -14,6 +15,11 @@ inline void check_nc_error(int code, std::string msg) {
 }
 
 int fast::OpenFAST::AbortErrLev = ErrID_Fatal; // abort error level; compare with NWTC Library
+fast::OpenFAST::SubstepCallback fast::OpenFAST::substepCallback_;
+
+void fast::OpenFAST::setSubstepCallback(SubstepCallback callback) {
+    substepCallback_ = std::move(callback);
+}
 
 int time_step_ratio(double fastDt, double driverDt, double epsFactor=1e-6)
 {
@@ -1196,6 +1202,8 @@ void fast::OpenFAST::update_states_driver_time_step(bool writeFiles) {
         send_data_to_openfast(fast::STATE_NP1);
 
         for (int iTurb=0; iTurb < nTurbinesProc; iTurb++) {
+            if (substepCallback_ && turbineData[iTurb].inflowType == 2)
+                substepCallback_(iTurb, 1.0, extinfw_i_f_FAST[iTurb], extinfw_o_t_FAST[iTurb]);
             FAST_CFD_UpdateStates(&iTurb, &ErrStat, ErrMsg);
             checkError(ErrStat, ErrMsg);
 
@@ -1341,11 +1349,20 @@ void fast::OpenFAST::step(double ss_time) {
         FAST_CFD_Prework(&iTurb, &ErrStat, ErrMsg);
         checkError(ErrStat, ErrMsg);
         send_data_to_openfast(ss_time);
+        if (substepCallback_ && turbineData[iTurb].inflowType == 2)
+            substepCallback_(iTurb, ss_time, extinfw_i_f_FAST[iTurb], extinfw_o_t_FAST[iTurb]);
         FAST_CFD_UpdateStates(&iTurb, &ErrStat, ErrMsg);
         checkError(ErrStat, ErrMsg);
         FAST_CFD_AdvanceToNextTimeStep(&iTurb, &ErrStat, ErrMsg);
         checkError(ErrStat, ErrMsg);
 
+    }
+
+    if (firstPass_ && ss_time < 1.0) {
+        for (int iTurb=0; iTurb < nTurbinesProc; iTurb++) {
+            FAST_CFD_WriteSubstepOutput(&iTurb, &ErrStat, ErrMsg);
+            checkError(ErrStat, ErrMsg);
+        }
     }
 
 }

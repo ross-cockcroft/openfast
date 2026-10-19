@@ -33,6 +33,7 @@ EXTERNAL_ROUTINE void FAST_CFD_Prework(int * iTurb, int *ErrStat, char *ErrMsg);
 EXTERNAL_ROUTINE void FAST_CFD_UpdateStates(int * iTurb, int *ErrStat, char *ErrMsg);
 EXTERNAL_ROUTINE void FAST_CFD_AdvanceToNextTimeStep(int * iTurb, int *ErrStat, char *ErrMsg);
 EXTERNAL_ROUTINE void FAST_CFD_WriteOutput(int * iTurb, int *ErrStat, char *ErrMsg);
+EXTERNAL_ROUTINE void FAST_CFD_WriteSubstepOutput(int * iTurb, int *ErrStat, char *ErrMsg);
 EXTERNAL_ROUTINE void FAST_CFD_Step(int * iTurb, int *ErrStat, char *ErrMsg);
 EXTERNAL_ROUTINE void FAST_CFD_Reset_SubStep(int * iTurb, int * n_timesteps, int *ErrStat, char *ErrMsg);
 EXTERNAL_ROUTINE void FAST_CFD_Store_SubStep(int * iTurb, int * n_t_global,  int *ErrStat, char *ErrMsg);

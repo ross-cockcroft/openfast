@@ -10,6 +10,8 @@
 #include <set>
 #include <map>
 #include <memory>
+#include <functional>
+#define OPENFAST_CPP_SUBSTEP_CALLBACK 1
 #include "netcdf.h"
 #include "dlfcn.h"
 //TODO: The skip MPICXX is put in place primarily to get around errors in ExternalInflow. This will cause problems if the driver program uses C++ API for MPI.
@@ -362,8 +364,13 @@ class OpenFAST {
   int ErrStat{0};
   char ErrMsg[INTERFACE_STRING_LENGTH];  // make sure this is the same size as IntfStrLen in FAST_Library.f90
   static int AbortErrLev;
+  static std::function<void(int, double, const ExtInfw_InputType_t &, ExtInfw_OutputType_t &)> substepCallback_;
 
  public:
+
+  using SubstepCallback = std::function<void(int, double, const ExtInfw_InputType_t &, ExtInfw_OutputType_t &)>;
+
+  static void setSubstepCallback(SubstepCallback callback);
 
   //! Constructor
   OpenFAST() ;
