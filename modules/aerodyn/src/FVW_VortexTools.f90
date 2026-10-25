@@ -61,6 +61,7 @@ module FVW_VortexTools
    !> The node type is recursive and is used to make a chained-list of nodes for the tree
    type T_Node
       real(ReKi)                         :: radius !< Typical dimension of a cell (max of x,y,z extent)
+      real(ReKi)                         :: extent = 0.0_ReKi
       real(ReKi),dimension(3)            :: center !< Used to store first the geometric center, then the vorticity center
       real(ReKi),dimension(3,10)         :: Moments
       integer,dimension(:),pointer       :: iPart=>null()  !< indexes of particles stored in this node
@@ -916,6 +917,7 @@ contains
       ! --- Handle special case for root node
       node => Tree_Seg%Root
       Seg => Tree_Seg%Seg
+      node%extent = 0.0_ReKi
       if (Seg%n==0) then
          ! Do nothing
          node%radius = -9999.99_ReKi
@@ -1046,6 +1048,7 @@ contains
          P1 = Seg%SP(1:3,Seg%SConnct(1,node%iPart(i)))
          P2 = Seg%SP(1:3,Seg%SConnct(2,node%iPart(i)))
          DP = P2-P1
+         node%extent = max(node%extent, sqrt(sum((P1-VortC)**2)), sqrt(sum((P2-VortC)**2)))
          SegGammaVec = Seg%SGamma(node%iPart(i))*DP            !Vorticity vector
          ! Order 0
          node%Moments(1:3,M0_000) = node%Moments(1:3,M0_000) + SegGammaVec
@@ -1153,6 +1156,7 @@ contains
             locCenter = GeomC + 0.5*halfSize*(/ (-1)**(iOctant), (-1)**floor(0.5*real(iOctant-1)+1), (-1)**floor(0.25*real(iOctant-1)+1) /)
             ! Init of branches
             node%branches(iBranch)%radius  = halfSize  !
+            node%branches(iBranch)%extent  = 0.0_ReKi
             node%branches(iBranch)%center  = locCenter ! NOTE: this is the geometric center
             node%branches(iBranch)%Moments = 0.0_ReKi  !
             node%branches(iBranch)%branches=>null()
@@ -1704,7 +1708,7 @@ contains
                enddo
             endif
          else
-            distDirect = max(BranchFactor*node%radius, DistanceDirect) ! Under this distance-> Direct eval., Above it -> quadrupole calculation
+            distDirect = max(BranchFactor*max(node%radius, node%extent), DistanceDirect) ! Under this distance-> Direct eval., Above it -> quadrupole calculation
             DeltaP  = - node%center + CP(1:3)                          ! Vector between the control point and the center of the branch
             r       = sqrt( DeltaP(1)**2 + DeltaP(2)**2 + DeltaP(3)**2)
             ! Test if the control point is too close from the branch node so that a direct evaluation is needed
