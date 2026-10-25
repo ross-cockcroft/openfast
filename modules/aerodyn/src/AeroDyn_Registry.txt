@@ -13,6 +13,7 @@
 include	Registry_NWTC_Library.txt
 usefrom	AirfoilInfo_Registry.txt
 usefrom	BEMT_Registry.txt
+usefrom	SmearCorr_Registry.txt
 usefrom FVW_Registry.txt
 usefrom	UnsteadyAero_Registry.txt
 usefrom AeroAcoustics_Registry.txt
@@ -226,6 +227,7 @@ typedef	^	     ^      	ReKi   	SA_PsiFwd	-	 60	-	"Sector Average - Forward Azimu
 typedef	^	     ^      	IntKi  	SA_nPerSec	-	  5	-	"Sector average - Number of points per sectors (-) [used only when SectAvg=True]" -
 typedef	^	     ^      	LOGICAL	AoA34	-	-	-	"Sample the angle of attack (AoA) at the 3/4 chord or the AC point {default=True} [always used]"	-
 typedef	^	AD_InputFile	UA_InitInputType	UA_Init	-	-	-	"InitInput data for UA model"	-
+typedef	^	AD_InputFile	SC_InitInputType	SC_Init	-	-	-	"InitInput data for the smearing correction"	-
 typedef	^	AD_InputFile	ReKi	InCol_Alfa	-	-	-	"The column in the airfoil tables that contains the angle of attack"	-
 typedef	^	AD_InputFile	ReKi	InCol_Cl	-	-	-	"The column in the airfoil tables that contains the lift coefficient"	-
 typedef	^	AD_InputFile	ReKi	InCol_Cd	-	-	-	"The column in the airfoil tables that contains the drag coefficient"	-
@@ -270,6 +272,7 @@ typedef	^	ContinuousStateType	FVW_ContinuousStateType	FVW	-	-	-	"Continuous stat
 # Define discrete (nondifferentiable) states here:
 typedef	^	RotDiscreteStateType	BEMT_DiscreteStateType	BEMT	-	-	-	"Discrete states from the BEMT module"	-
 typedef	^	RotDiscreteStateType	AA_DiscreteStateType	AA	-	-	-	"Discrete states from the AA module"	-
+typedef	^	RotDiscreteStateType	SC_DiscreteStateType	SC	-	-	-	"Discrete states of the smearing correction"	-
 
 typedef	^	DiscreteStateType	RotDiscreteStateType	rotors	{:}	-	-	"Discrete states for each rotor"	-
 typedef	^	DiscreteStateType	FVW_DiscreteStateType	FVW	-	-	-	"Discrete states from the FVW module"	-
@@ -346,6 +349,7 @@ typedef ^   RotParameterType	ReKi	TwrAxCent {:}	    -	-	"Array of tower element 
 typedef ^   RotParameterType	ReKi	TwrIT     {:}   	-	-	"Array of tower node tangential inertia factor" kg/m
 typedef ^   RotParameterType	ReKi	TwrAT     {:}   	-	-	"Array of tower node tangential added mass factor" kg/m
 typedef	^	RotParameterType	BEMT_ParameterType	BEMT	-	-	-	"Parameters for BEMT module"
+typedef	^	RotParameterType	SC_ParameterType	SC	-	-	-	"Parameters of the smearing correction"	-
 typedef	^	RotParameterType	AA_ParameterType	AA	-	-	-	"Parameters for AA module"
 typedef	^	RotParameterType	IntKi	NumExtendedInputs	-	-	-	"number of extended inputs" -
 typedef	^	RotParameterType	ReKi	du	{:}	-	-	"vector that determines size of perturbation for u (inputs)"
@@ -454,6 +458,7 @@ typedef	^	RotMiscVarType	BEMT_OutputType	BEMT_y	-	-	-	"Outputs from the BEMT mod
 typedef	^	RotMiscVarType	BEMT_InputType	BEMT_u	2	-	-	"Inputs to the BEMT module"	-
 typedef	^	RotMiscVarType	AA_MiscVarType	AA	-	-	-	"MiscVars from the AA module"	-
 typedef	^	RotMiscVarType	AA_OutputType	AA_y	-	-	-	"Outputs from the AA module"	-
+typedef	^	RotMiscVarType	SC_MiscVarType	SC	-	-	-	"MiscVars of the smearing correction"	-
 typedef	^	RotMiscVarType	AA_InputType	AA_u	-	-	-	"Inputs to the AA module"	-
 
 typedef	^	RotMiscVarType	ReKi	DisturbedInflow	{:}{:}{:}	-	-	"InflowOnBlade values modified by tower influence"	m/s

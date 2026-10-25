@@ -397,6 +397,14 @@ not used when ``Wake_Mod=3``, because OLAF models the shed vorticity and always
 runs the unsteady model without the lag, and it has no effect when ``UA_Mod`` is
 0, 6 or 7.
 
+``SmearMod`` selects a correction of the inflow for the smearing of the blade force by an external flow solver that projects the force with a Gaussian kernel and supplies the velocity at the blade nodes. 0 is no correction. 1 is the filtered lifting-line correction (FLLC) of Martinez-Tossas and Meneveau (2019), in the variable-chord form of Martinez-Tossas (2024). 2 is the vortex-based smearing correction (VBSC) of Meyer Forsting, Pirrung and Ramos-Garcia (2019), not yet implemented. The correction is added to the inflow at each blade node before the angle of attack is formed, at every AeroDyn time step, from the same blade motion that AeroDyn uses for the loads. ``SmearMod`` greater than 0 needs ``Wake_Mod=0`` and ``SectAvg=False``, and is not available for linearization or MHK turbines. If this line is omitted from the input file, ``SmearMod`` defaults to 0, and each of the lines below defaults to the value given here when it is omitted.
+
+``SmearEps`` is the width :math:`\epsilon` in metres of the Gaussian force kernel of the flow solver, :math:`\exp(-r^2/\epsilon^2)/(\epsilon^3 \pi^{3/2})`. ``SmearStart`` is the time in seconds before which the correction is zero (default 0).
+
+``FLLCEpsChord`` is the target kernel width over the local chord (default 0.25). ``FLLCTau`` is the relaxation time of the FLLC in seconds. At each time step the correction moves towards its target by the factor :math:`1-\exp(-\Delta t/\tau)`, so the response time does not depend on the time step. A relaxation factor :math:`f` per flow-solver step of length :math:`\Delta t_f` corresponds to :math:`\tau = -\Delta t_f / \ln(1-f)`. The correction is computed on the AeroDyn blade nodes, so the nodes must resolve the target width. AeroDyn prints the smallest ratio of target width to node spacing at initialization.
+
+``VBSCMaxResid`` (default :math:`10^{-6}`), ``VBSCCircFilter`` (default TRUE), ``VBSCRelaxSafety`` (default 0.2), ``VBSCShed`` (default FALSE) and ``VBSCShedPitchRate`` (default FALSE) set the residual of the VBSC circulation iteration, its circulation filter, the start value of its relaxation safety term, its shed-vorticity part, and the pitch-rate part of that shed term.
+
 
 .. _airfoil_information:
 

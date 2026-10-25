@@ -981,6 +981,26 @@ SUBROUTINE ParsePrimaryFileInfo( PriPath, InitInp, InputFile, RootName, NumBlade
       if (ErrStat2>= AbortErrLev) InputFileData%UAEndRad = 1.0_ReKi
    call ParseVar( FileInfo_In, CurLine, "UAShedEffect", InputFileData%UA_Init%ShedEffect, ErrStat2, ErrMsg2, UnEc )
       if (ErrStat2>= AbortErrLev) InputFileData%UA_Init%ShedEffect = .true.
+   call ParseVar( FileInfo_In, CurLine, "SmearMod", InputFileData%SC_Init%SmearMod, ErrStat2, ErrMsg2, UnEc )
+      if (ErrStat2>= AbortErrLev) InputFileData%SC_Init%SmearMod = SC_None
+   call ParseVar( FileInfo_In, CurLine, "SmearEps", InputFileData%SC_Init%Eps, ErrStat2, ErrMsg2, UnEc )
+      if (ErrStat2>= AbortErrLev) InputFileData%SC_Init%Eps = 0.0_ReKi
+   call ParseVar( FileInfo_In, CurLine, "SmearStart", InputFileData%SC_Init%Start, ErrStat2, ErrMsg2, UnEc )
+      if (ErrStat2>= AbortErrLev) InputFileData%SC_Init%Start = 0.0_DbKi
+   call ParseVar( FileInfo_In, CurLine, "FLLCEpsChord", InputFileData%SC_Init%EpsChord, ErrStat2, ErrMsg2, UnEc )
+      if (ErrStat2>= AbortErrLev) InputFileData%SC_Init%EpsChord = 0.25_ReKi
+   call ParseVar( FileInfo_In, CurLine, "FLLCTau", InputFileData%SC_Init%Tau, ErrStat2, ErrMsg2, UnEc )
+      if (ErrStat2>= AbortErrLev) InputFileData%SC_Init%Tau = 0.0_ReKi
+   call ParseVar( FileInfo_In, CurLine, "VBSCMaxResid", InputFileData%SC_Init%MaxResid, ErrStat2, ErrMsg2, UnEc )
+      if (ErrStat2>= AbortErrLev) InputFileData%SC_Init%MaxResid = 1.0e-6_ReKi
+   call ParseVar( FileInfo_In, CurLine, "VBSCCircFilter", InputFileData%SC_Init%CircFilter, ErrStat2, ErrMsg2, UnEc )
+      if (ErrStat2>= AbortErrLev) InputFileData%SC_Init%CircFilter = .true.
+   call ParseVar( FileInfo_In, CurLine, "VBSCRelaxSafety", InputFileData%SC_Init%RelaxSafety, ErrStat2, ErrMsg2, UnEc )
+      if (ErrStat2>= AbortErrLev) InputFileData%SC_Init%RelaxSafety = 0.2_ReKi
+   call ParseVar( FileInfo_In, CurLine, "VBSCShed", InputFileData%SC_Init%Shed, ErrStat2, ErrMsg2, UnEc )
+      if (ErrStat2>= AbortErrLev) InputFileData%SC_Init%Shed = .false.
+   call ParseVar( FileInfo_In, CurLine, "VBSCShedPitchRate", InputFileData%SC_Init%ShedPitchRate, ErrStat2, ErrMsg2, UnEc )
+      if (ErrStat2>= AbortErrLev) InputFileData%SC_Init%ShedPitchRate = .false.
 
    !======  Airfoil Information =========================================================================
    if ( InputFileData%Echo )   WRITE(UnEc, '(A)') FileInfo_In%Lines(CurLine)    ! Write section break to echo

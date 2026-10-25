@@ -1025,6 +1025,19 @@ class InputWriter_OpenFAST(object):
             f.write('{:<22} {:<11} {:}'.format(self.fst_vt['AeroDyn']['UAEndRad'], 'UAEndRad', '- Ending radius for dynamic stall (fraction of rotor radius [0.0,1.0]) [used only when UA_Mod>0; if line is missing UAEndRad=1]\n'))
         if 'UAShedEffect' in self.fst_vt['AeroDyn']:
             f.write('{!s:<22} {:<11} {:}'.format(self.fst_vt['AeroDyn']['UAShedEffect'], 'UAShedEffect', '- Include the lag from shed vorticity in the unsteady airfoil model, False when the inflow already contains it (flag) [used only when UA_Mod is 2 to 5 and Wake_Mod is not 3, True when the line is missing]\n'))
+        smear_keys = (('SmearMod', '- Smearing correction of the inflow for an external flow solver {0=none, 1=FLLC, 2=VBSC} (switch) [used only when Wake_Mod=0, 0 when the line is missing]'),
+                      ('SmearEps', '- Gaussian width of the force kernel of the flow solver (m) [used only when SmearMod>0]'),
+                      ('SmearStart', '- Time before which the correction is zero (s) [used only when SmearMod>0]'),
+                      ('FLLCEpsChord', '- FLLC target kernel width over chord (-) [used only when SmearMod=1]'),
+                      ('FLLCTau', '- FLLC relaxation time (s) [used only when SmearMod=1]'),
+                      ('VBSCMaxResid', '- VBSC residual of the circulation iteration (-) [used only when SmearMod=2]'),
+                      ('VBSCCircFilter', '- VBSC circulation filter (flag) [used only when SmearMod=2]'),
+                      ('VBSCRelaxSafety', '- VBSC start value of the relaxation safety term (-) [used only when SmearMod=2]'),
+                      ('VBSCShed', '- VBSC shed-vorticity part (flag) [used only when SmearMod=2]'),
+                      ('VBSCShedPitchRate', '- VBSC pitch-rate part of the shed term (flag) [used only when SmearMod=2 and VBSCShed=True]'))
+        for key, desc in smear_keys:
+            if key in self.fst_vt['AeroDyn']:
+                f.write('{!s:<22} {:<11} {:}'.format(self.fst_vt['AeroDyn'][key], key, desc + '\n'))
         f.write('======  Airfoil Information =========================================================================\n')
         f.write('{:<22d} {:<11} {:}'.format(self.fst_vt['AeroDyn']['AFTabMod'], 'AFTabMod', '- Interpolation method for multiple airfoil tables {1=1D interpolation on AoA (first table only); 2=2D interpolation on AoA and Re; 3=2D interpolation on AoA and UserProp} (-)\n'))
         f.write('{:<22d} {:<11} {:}'.format(self.fst_vt['AeroDyn']['InCol_Alfa'], 'InCol_Alfa', '- The column in the airfoil tables that contains the angle of attack (-)\n'))
