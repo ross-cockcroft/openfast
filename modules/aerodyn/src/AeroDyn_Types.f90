@@ -33,6 +33,7 @@ MODULE AeroDyn_Types
 !---------------------------------------------------------------------------------------------------------------------------------
 USE AirfoilInfo_Types
 USE BEMT_Types
+USE SmearCorr_Types
 USE FVW_Types
 USE AeroAcoustics_Types
 USE InflowWind_Types
@@ -249,6 +250,7 @@ IMPLICIT NONE
     INTEGER(IntKi)  :: SA_nPerSec = 5      !< Sector average - Number of points per sectors (-) [used only when SectAvg=True] [-]
     LOGICAL  :: AoA34 = .false.      !< Sample the angle of attack (AoA) at the 3/4 chord or the AC point {default=True} [always used] [-]
     TYPE(UA_InitInputType)  :: UA_Init      !< InitInput data for UA model [-]
+    TYPE(SC_InitInputType)  :: SC_Init      !< InitInput data for the smearing correction [-]
     REAL(ReKi)  :: InCol_Alfa = 0.0_ReKi      !< The column in the airfoil tables that contains the angle of attack [-]
     REAL(ReKi)  :: InCol_Cl = 0.0_ReKi      !< The column in the airfoil tables that contains the lift coefficient [-]
     REAL(ReKi)  :: InCol_Cd = 0.0_ReKi      !< The column in the airfoil tables that contains the drag coefficient [-]
@@ -292,6 +294,7 @@ IMPLICIT NONE
   TYPE, PUBLIC :: RotDiscreteStateType
     TYPE(BEMT_DiscreteStateType)  :: BEMT      !< Discrete states from the BEMT module [-]
     TYPE(AA_DiscreteStateType)  :: AA      !< Discrete states from the AA module [-]
+    TYPE(SC_DiscreteStateType)  :: SC      !< Discrete states of the smearing correction [-]
   END TYPE RotDiscreteStateType
 ! =======================
 ! =========  AD_DiscreteStateType  =======
@@ -387,6 +390,7 @@ IMPLICIT NONE
     REAL(ReKi) , DIMENSION(:), ALLOCATABLE  :: TwrIT      !< Array of tower node tangential inertia factor [kg/m]
     REAL(ReKi) , DIMENSION(:), ALLOCATABLE  :: TwrAT      !< Array of tower node tangential added mass factor [kg/m]
     TYPE(BEMT_ParameterType)  :: BEMT      !< Parameters for BEMT module [-]
+    TYPE(SC_ParameterType)  :: SC      !< Parameters of the smearing correction [-]
     TYPE(AA_ParameterType)  :: AA      !< Parameters for AA module [-]
     INTEGER(IntKi)  :: NumExtendedInputs = 0_IntKi      !< number of extended inputs [-]
     REAL(ReKi) , DIMENSION(:), ALLOCATABLE  :: du      !< vector that determines size of perturbation for u (inputs) [-]
@@ -496,6 +500,7 @@ IMPLICIT NONE
     TYPE(BEMT_InputType) , DIMENSION(1:2)  :: BEMT_u      !< Inputs to the BEMT module [-]
     TYPE(AA_MiscVarType)  :: AA      !< MiscVars from the AA module [-]
     TYPE(AA_OutputType)  :: AA_y      !< Outputs from the AA module [-]
+    TYPE(SC_MiscVarType)  :: SC      !< MiscVars of the smearing correction [-]
     TYPE(AA_InputType)  :: AA_u      !< Inputs to the AA module [-]
     REAL(ReKi) , DIMENSION(:,:,:), ALLOCATABLE  :: DisturbedInflow      !< InflowOnBlade values modified by tower influence [m/s]
     REAL(ReKi) , DIMENSION(:,:,:), ALLOCATABLE  :: SectAvgInflow      !< Sector averaged - disturbed inflow to improve BEM shear calculations [m/s]
@@ -2226,6 +2231,9 @@ subroutine AD_CopyInputFile(SrcInputFileData, DstInputFileData, CtrlCode, ErrSta
    call UA_CopyInitInput(SrcInputFileData%UA_Init, DstInputFileData%UA_Init, CtrlCode, ErrStat2, ErrMsg2)
    call SetErrStat(ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName)
    if (ErrStat >= AbortErrLev) return
+   call SC_CopyInitInput(SrcInputFileData%SC_Init, DstInputFileData%SC_Init, CtrlCode, ErrStat2, ErrMsg2)
+   call SetErrStat(ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName)
+   if (ErrStat >= AbortErrLev) return
    DstInputFileData%InCol_Alfa = SrcInputFileData%InCol_Alfa
    DstInputFileData%InCol_Cl = SrcInputFileData%InCol_Cl
    DstInputFileData%InCol_Cd = SrcInputFileData%InCol_Cd
@@ -2318,6 +2326,8 @@ subroutine AD_DestroyInputFile(InputFileData, ErrStat, ErrMsg)
    end if
    call UA_DestroyInitInput(InputFileData%UA_Init, ErrStat2, ErrMsg2)
    call SetErrStat(ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName)
+   call SC_DestroyInitInput(InputFileData%SC_Init, ErrStat2, ErrMsg2)
+   call SetErrStat(ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName)
    if (allocated(InputFileData%AFNames)) then
       deallocate(InputFileData%AFNames)
    end if
@@ -2380,6 +2390,7 @@ subroutine AD_PackInputFile(RF, Indata)
    call RegPack(RF, InData%SA_nPerSec)
    call RegPack(RF, InData%AoA34)
    call UA_PackInitInput(RF, InData%UA_Init) 
+   call SC_PackInitInput(RF, InData%SC_Init) 
    call RegPack(RF, InData%InCol_Alfa)
    call RegPack(RF, InData%InCol_Cl)
    call RegPack(RF, InData%InCol_Cd)
@@ -2461,6 +2472,7 @@ subroutine AD_UnPackInputFile(RF, OutData)
    call RegUnpack(RF, OutData%SA_nPerSec); if (RegCheckErr(RF, RoutineName)) return
    call RegUnpack(RF, OutData%AoA34); if (RegCheckErr(RF, RoutineName)) return
    call UA_UnpackInitInput(RF, OutData%UA_Init) ! UA_Init 
+   call SC_UnpackInitInput(RF, OutData%SC_Init) ! SC_Init 
    call RegUnpack(RF, OutData%InCol_Alfa); if (RegCheckErr(RF, RoutineName)) return
    call RegUnpack(RF, OutData%InCol_Cl); if (RegCheckErr(RF, RoutineName)) return
    call RegUnpack(RF, OutData%InCol_Cd); if (RegCheckErr(RF, RoutineName)) return
@@ -2667,6 +2679,9 @@ subroutine AD_CopyRotDiscreteStateType(SrcRotDiscreteStateTypeData, DstRotDiscre
    call AA_CopyDiscState(SrcRotDiscreteStateTypeData%AA, DstRotDiscreteStateTypeData%AA, CtrlCode, ErrStat2, ErrMsg2)
    call SetErrStat(ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName)
    if (ErrStat >= AbortErrLev) return
+   call SC_CopyDiscState(SrcRotDiscreteStateTypeData%SC, DstRotDiscreteStateTypeData%SC, CtrlCode, ErrStat2, ErrMsg2)
+   call SetErrStat(ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName)
+   if (ErrStat >= AbortErrLev) return
 end subroutine
 
 subroutine AD_DestroyRotDiscreteStateType(RotDiscreteStateTypeData, ErrStat, ErrMsg)
@@ -2682,6 +2697,8 @@ subroutine AD_DestroyRotDiscreteStateType(RotDiscreteStateTypeData, ErrStat, Err
    call SetErrStat(ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName)
    call AA_DestroyDiscState(RotDiscreteStateTypeData%AA, ErrStat2, ErrMsg2)
    call SetErrStat(ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName)
+   call SC_DestroyDiscState(RotDiscreteStateTypeData%SC, ErrStat2, ErrMsg2)
+   call SetErrStat(ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName)
 end subroutine
 
 subroutine AD_PackRotDiscreteStateType(RF, Indata)
@@ -2691,6 +2708,7 @@ subroutine AD_PackRotDiscreteStateType(RF, Indata)
    if (RF%ErrStat >= AbortErrLev) return
    call BEMT_PackDiscState(RF, InData%BEMT) 
    call AA_PackDiscState(RF, InData%AA) 
+   call SC_PackDiscState(RF, InData%SC) 
    if (RegCheckErr(RF, RoutineName)) return
 end subroutine
 
@@ -2701,6 +2719,7 @@ subroutine AD_UnPackRotDiscreteStateType(RF, OutData)
    if (RF%ErrStat /= ErrID_None) return
    call BEMT_UnpackDiscState(RF, OutData%BEMT) ! BEMT 
    call AA_UnpackDiscState(RF, OutData%AA) ! AA 
+   call SC_UnpackDiscState(RF, OutData%SC) ! SC 
 end subroutine
 
 subroutine AD_CopyDiscState(SrcDiscStateData, DstDiscStateData, CtrlCode, ErrStat, ErrMsg)
@@ -3770,6 +3789,9 @@ subroutine AD_CopyRotParameterType(SrcRotParameterTypeData, DstRotParameterTypeD
    call BEMT_CopyParam(SrcRotParameterTypeData%BEMT, DstRotParameterTypeData%BEMT, CtrlCode, ErrStat2, ErrMsg2)
    call SetErrStat(ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName)
    if (ErrStat >= AbortErrLev) return
+   call SC_CopyParam(SrcRotParameterTypeData%SC, DstRotParameterTypeData%SC, CtrlCode, ErrStat2, ErrMsg2)
+   call SetErrStat(ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName)
+   if (ErrStat >= AbortErrLev) return
    call AA_CopyParam(SrcRotParameterTypeData%AA, DstRotParameterTypeData%AA, CtrlCode, ErrStat2, ErrMsg2)
    call SetErrStat(ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName)
    if (ErrStat >= AbortErrLev) return
@@ -3969,6 +3991,8 @@ subroutine AD_DestroyRotParameterType(RotParameterTypeData, ErrStat, ErrMsg)
    end if
    call BEMT_DestroyParam(RotParameterTypeData%BEMT, ErrStat2, ErrMsg2)
    call SetErrStat(ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName)
+   call SC_DestroyParam(RotParameterTypeData%SC, ErrStat2, ErrMsg2)
+   call SetErrStat(ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName)
    call AA_DestroyParam(RotParameterTypeData%AA, ErrStat2, ErrMsg2)
    call SetErrStat(ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName)
    if (allocated(RotParameterTypeData%du)) then
@@ -4048,6 +4072,7 @@ subroutine AD_PackRotParameterType(RF, Indata)
    call RegPackAlloc(RF, InData%TwrIT)
    call RegPackAlloc(RF, InData%TwrAT)
    call BEMT_PackParam(RF, InData%BEMT) 
+   call SC_PackParam(RF, InData%SC) 
    call AA_PackParam(RF, InData%AA) 
    call RegPack(RF, InData%NumExtendedInputs)
    call RegPackAlloc(RF, InData%du)
@@ -4154,6 +4179,7 @@ subroutine AD_UnPackRotParameterType(RF, OutData)
    call RegUnpackAlloc(RF, OutData%TwrIT); if (RegCheckErr(RF, RoutineName)) return
    call RegUnpackAlloc(RF, OutData%TwrAT); if (RegCheckErr(RF, RoutineName)) return
    call BEMT_UnpackParam(RF, OutData%BEMT) ! BEMT 
+   call SC_UnpackParam(RF, OutData%SC) ! SC 
    call AA_UnpackParam(RF, OutData%AA) ! AA 
    call RegUnpack(RF, OutData%NumExtendedInputs); if (RegCheckErr(RF, RoutineName)) return
    call RegUnpackAlloc(RF, OutData%du); if (RegCheckErr(RF, RoutineName)) return
@@ -5042,6 +5068,9 @@ subroutine AD_CopyRotMiscVarType(SrcRotMiscVarTypeData, DstRotMiscVarTypeData, C
    call AA_CopyOutput(SrcRotMiscVarTypeData%AA_y, DstRotMiscVarTypeData%AA_y, CtrlCode, ErrStat2, ErrMsg2)
    call SetErrStat(ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName)
    if (ErrStat >= AbortErrLev) return
+   call SC_CopyMisc(SrcRotMiscVarTypeData%SC, DstRotMiscVarTypeData%SC, CtrlCode, ErrStat2, ErrMsg2)
+   call SetErrStat(ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName)
+   if (ErrStat >= AbortErrLev) return
    call AA_CopyInput(SrcRotMiscVarTypeData%AA_u, DstRotMiscVarTypeData%AA_u, CtrlCode, ErrStat2, ErrMsg2)
    call SetErrStat(ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName)
    if (ErrStat >= AbortErrLev) return
@@ -5670,6 +5699,8 @@ subroutine AD_DestroyRotMiscVarType(RotMiscVarTypeData, ErrStat, ErrMsg)
    call SetErrStat(ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName)
    call AA_DestroyOutput(RotMiscVarTypeData%AA_y, ErrStat2, ErrMsg2)
    call SetErrStat(ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName)
+   call SC_DestroyMisc(RotMiscVarTypeData%SC, ErrStat2, ErrMsg2)
+   call SetErrStat(ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName)
    call AA_DestroyInput(RotMiscVarTypeData%AA_u, ErrStat2, ErrMsg2)
    call SetErrStat(ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName)
    if (allocated(RotMiscVarTypeData%DisturbedInflow)) then
@@ -5875,6 +5906,7 @@ subroutine AD_PackRotMiscVarType(RF, Indata)
    end do
    call AA_PackMisc(RF, InData%AA) 
    call AA_PackOutput(RF, InData%AA_y) 
+   call SC_PackMisc(RF, InData%SC) 
    call AA_PackInput(RF, InData%AA_u) 
    call RegPackAlloc(RF, InData%DisturbedInflow)
    call RegPackAlloc(RF, InData%SectAvgInflow)
@@ -6018,6 +6050,7 @@ subroutine AD_UnPackRotMiscVarType(RF, OutData)
    end do
    call AA_UnpackMisc(RF, OutData%AA) ! AA 
    call AA_UnpackOutput(RF, OutData%AA_y) ! AA_y 
+   call SC_UnpackMisc(RF, OutData%SC) ! SC 
    call AA_UnpackInput(RF, OutData%AA_u) ! AA_u 
    call RegUnpackAlloc(RF, OutData%DisturbedInflow); if (RegCheckErr(RF, RoutineName)) return
    call RegUnpackAlloc(RF, OutData%SectAvgInflow); if (RegCheckErr(RF, RoutineName)) return

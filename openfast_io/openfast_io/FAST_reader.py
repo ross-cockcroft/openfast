@@ -1144,6 +1144,17 @@ class InputReader_OpenFAST(object):
         else:
             f.seek(file_pos)
 
+        for key, conv in (('SmearMod', int_read), ('SmearEps', float_read), ('SmearStart', float_read),
+                          ('FLLCEpsChord', float_read), ('FLLCTau', float_read), ('VBSCMaxResid', float_read),
+                          ('VBSCCircFilter', bool_read), ('VBSCRelaxSafety', float_read), ('VBSCShed', bool_read),
+                          ('VBSCShedPitchRate', bool_read)):
+            file_pos = f.tell()
+            line = f.readline()
+            if line.split()[1:2] == [key]:
+                self.fst_vt['AeroDyn'][key] = conv(line.split()[0])
+            else:
+                f.seek(file_pos)
+
 
         # Airfoil Information
         f.readline()

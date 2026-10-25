@@ -25,6 +25,7 @@ module AeroDyn
    use AeroDyn_Types
    use AeroDyn_IO
    use BEMT
+   use SmearCorr
    use AirfoilInfo
    use NWTC_LAPACK
    use AeroAcoustics
@@ -500,6 +501,11 @@ subroutine AD_Init( InitInp, u, p, x, xd, z, OtherState, y, m, Interval, InitOut
 
          call BEMT_CopyInput( m%rotors(iR)%BEMT_u(1), m%rotors(iR)%BEMT_u(2), MESH_NEWCOPY, ErrStat2, ErrMsg2 )
             call SetErrStat( ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName )
+
+         if (InputFileData%SC_Init%SmearMod /= SC_None) then
+            call Init_SmearCorr( InputFileData, u%rotors(iR), p%rotors(iR), p, xd%rotors(iR)%SC, m%rotors(iR)%SC, iR, ErrStat2, ErrMsg2 )
+            if (Failed()) return;
+         end if
     
             
             !............................................................................................
@@ -1815,6 +1821,15 @@ subroutine AD_End( u, p, x, xd, z, OtherState, y, m, ErrStat, ErrMsg )
                   call AA_End( m%rotors(iR)%AA_u, p%rotors(iR)%AA, xd%rotors(iR)%AA, OtherState%rotors(iR)%AA, m%rotors(iR)%AA_y, m%rotors(iR)%AA, ErrStat, ErrMsg )
                end if
 
+               if (p%rotors(iR)%SC%SmearMod == SC_VBSC) then
+                  call WrScr( '   VBSC rotor '//trim(num2lstr(iR))//': '//trim(num2lstr(m%rotors(iR)%SC%nSolves))//' blade solves, '// &
+                              trim(num2lstr(m%rotors(iR)%SC%unconvSolves))//' not converged in '//trim(num2lstr(m%rotors(iR)%SC%unconvSteps))// &
+                              ' state updates, mean iterations '//trim(num2lstr(real(m%rotors(iR)%SC%sumIter,ReKi)/real(max(1,m%rotors(iR)%SC%nSolves),ReKi)))// &
+                              ', largest '//trim(num2lstr(m%rotors(iR)%SC%maxIter))//', pair-table rebuilds '//trim(num2lstr(m%rotors(iR)%SC%rebuilds)) )
+               else if (p%rotors(iR)%SC%SmearMod == SC_FLLC) then
+                  call WrScr( '   FLLC rotor '//trim(num2lstr(iR))//': '//trim(num2lstr(m%rotors(iR)%SC%nUpdates))//' state updates with the correction active' )
+               end if
+
             enddo
          end if
          
@@ -1904,6 +1919,38 @@ subroutine AD_UpdateStates( t, n, u, utimes, p, x, xd, z, OtherState, m, errStat
       ! NOTE: this is different than glue code, which has t+dt at u(1)
    BEMT_utimes(2) = t+p%DT
    BEMT_utimes(1) = t
+   if (any(p%rotors(:)%SC%SmearMod /= SC_None)) then
+      do i=1,2
+         call AD_Input_ExtrapInterp(u,utimes,uInterp,BEMT_utimes(i), errStat2, errMsg2)
+         if (Failed()) return
+
+         call AD_CalcWind(utimes(i),uInterp, p%FLowField, p, m, OtherState, m%Inflow(1), ErrStat2, ErrMsg2)
+         if (Failed()) return
+
+         do iR = 1,size(p%rotors)
+            if (p%rotors(iR)%SC%SmearMod == SC_None) then
+               call SetInputs(t, p%rotors(iR), p, uInterp%rotors(iR), InflowInterp%RotInflow(iR), m%rotors(iR), i, errStat2, errMsg2)
+               if (Failed()) return
+            else if (i == 1) then
+               call SetInputs(t, p%rotors(iR), p, uInterp%rotors(iR), InflowInterp%RotInflow(iR), m%rotors(iR), i, errStat2, errMsg2, xd%rotors(iR)%SC%du)
+               if (Failed()) return
+               if (p%rotors(iR)%SC%SmearMod == SC_FLLC) then
+                  call SmearCorr_Advance(t, uInterp%rotors(iR), p%rotors(iR), p, x%rotors(iR), xd%rotors(iR), z%rotors(iR), OtherState%rotors(iR), m%rotors(iR), errStat2, errMsg2)
+                  if (Failed()) return
+               end if
+            else
+               if (p%rotors(iR)%SC%SmearMod == SC_VBSC) then
+                  call SetInputs(t, p%rotors(iR), p, uInterp%rotors(iR), InflowInterp%RotInflow(iR), m%rotors(iR), i, errStat2, errMsg2)
+                  if (Failed()) return
+                  call SmearCorr_AdvanceVBSC(t + p%DT, uInterp%rotors(iR), p%rotors(iR), p, xd%rotors(iR), m%rotors(iR), errStat2, errMsg2)
+                  if (Failed()) return
+               end if
+               call SetInputs(t, p%rotors(iR), p, uInterp%rotors(iR), InflowInterp%RotInflow(iR), m%rotors(iR), i, errStat2, errMsg2, m%rotors(iR)%SC%duNew)
+               if (Failed()) return
+            end if
+         enddo
+      end do
+   else
    do i=2,1,-1 ! I'm calculating values for t second in case we want the other misc vars at t as before, but I don't think it matters)
       call AD_Input_ExtrapInterp(u,utimes,uInterp,BEMT_utimes(i), errStat2, errMsg2)
       if (Failed()) return
@@ -1917,6 +1964,7 @@ subroutine AD_UpdateStates( t, n, u, utimes, p, x, xd, z, OtherState, m, errStat
          if (Failed()) return
       enddo
    end do
+   end if
 
 
    if (p%Wake_Mod /= WakeMod_FVW) then
@@ -1935,6 +1983,13 @@ subroutine AD_UpdateStates( t, n, u, utimes, p, x, xd, z, OtherState, m, errStat
             call AA_UpdateStates(t,  n, m%rotors(iR)%AA, m%rotors(iR)%AA_u, p%rotors(iR)%AA, xd%rotors(iR)%AA, OtherState%rotors(iR)%AA, errStat2, errMsg2)
             if (Failed()) return
          end if       
+
+         if (p%rotors(iR)%SC%SmearMod == SC_FLLC) then
+            xd%rotors(iR)%SC%du = m%rotors(iR)%SC%duNew
+         else if (p%rotors(iR)%SC%SmearMod == SC_VBSC) then
+            call SC_CopyDiscState( m%rotors(iR)%SC%xdNew, xd%rotors(iR)%SC, MESH_UPDATECOPY, errStat2, errMsg2 )
+            if (Failed()) return
+         end if
       enddo
 
    else  ! Call the FVW sub module
@@ -2295,7 +2350,11 @@ subroutine RotCalcOutput( t, u, RotInflow, p, p_AD, x, xd, z, OtherState, y, m, 
       CalcWriteOutput = .true. ! by default, calculate WriteOutput unless told that we do not need it
    end if
 
-   call SetInputs(t, p, p_AD, u, RotInflow, m, indx, errStat2, errMsg2)      
+   if (p%SC%SmearMod /= SC_None) then
+      call SetInputs(t, p, p_AD, u, RotInflow, m, indx, errStat2, errMsg2, xd%SC%du)
+   else
+      call SetInputs(t, p, p_AD, u, RotInflow, m, indx, errStat2, errMsg2)      
+   end if
       call SetErrStat(ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName)
 
    if (p_AD%Wake_Mod /= WakeMod_FVW) then
@@ -3160,7 +3219,7 @@ END SUBROUTINE RotCalcContStateDeriv
 !----------------------------------------------------------------------------------------------------------------------------------
 !> This subroutine converts the AeroDyn inputs into values that can be used for its submodules. It calculates the disturbed inflow
 !! on the blade if tower shadow or tower influence are enabled, then uses these values to set m%BEMT_u(indx).
-subroutine SetInputs(t, p, p_AD, u, RotInflow, m, indx, errStat, errMsg)
+subroutine SetInputs(t, p, p_AD, u, RotInflow, m, indx, errStat, errMsg, SmearDu)
    real(DbKi),                   intent(in   )  :: t                      !< Current simulation time in seconds
    type(RotParameterType),       intent(in   )  :: p                      !< AD parameters
    type(AD_ParameterType),       intent(in   )  :: p_AD                   !< AD parameters
@@ -3170,16 +3229,24 @@ subroutine SetInputs(t, p, p_AD, u, RotInflow, m, indx, errStat, errMsg)
    integer,                      intent(in   )  :: indx                   !< index into m%BEMT_u(indx) array; 1=t and 2=t+dt (but not checked here)
    integer(IntKi),               intent(  out)  :: ErrStat                !< Error status of the operation
    character(*),                 intent(  out)  :: ErrMsg                 !< Error message if ErrStat /= ErrID_None
+   real(R8Ki),         optional, intent(in   )  :: SmearDu(:,:,:)
                                  
    ! local variables             
    integer(intKi)                               :: ErrStat2
    character(ErrMsgLen)                         :: ErrMsg2
    character(*), parameter                      :: RoutineName = 'SetInputs'
+   integer(intKi)                               :: k
    ErrStat = ErrID_None
    ErrMsg  = ""
    
    ! Disturbed inflow on blade (if tower shadow present)
    call SetDisturbedInflow(p, p_AD, u, RotInflow, m, errStat2, errMsg2); call SetErrStat(errStat2, errMsg2, errStat, errMsg, RoutineName)
+
+   if (present(SmearDu)) then
+      do k = 1, p%NumBlades
+         m%DisturbedInflow(:,:,k) = m%DisturbedInflow(:,:,k) + real(SmearDu(:,:,k), ReKi)
+      end do
+   end if
 
    if (p_AD%Wake_Mod /= WakeMod_FVW) then
 
@@ -3193,6 +3260,216 @@ subroutine SetInputs(t, p, p_AD, u, RotInflow, m, indx, errStat, errMsg)
    endif
 end subroutine SetInputs
 
+
+!----------------------------------------------------------------------------------------------------------------------------------
+subroutine Init_SmearCorr( InputFileData, u, p, p_AD, xd, m, iR, ErrStat, ErrMsg )
+   type(AD_InputFile),         intent(in   ) :: InputFileData
+   type(RotInputType),         intent(in   ) :: u
+   type(RotParameterType),     intent(inout) :: p
+   type(AD_ParameterType),     intent(in   ) :: p_AD
+   type(SC_DiscreteStateType), intent(  out) :: xd
+   type(SC_MiscVarType),       intent(  out) :: m
+   integer(IntKi),             intent(in   ) :: iR
+   integer(IntKi),             intent(  out) :: ErrStat
+   character(*),               intent(  out) :: ErrMsg
+
+   type(SC_InitInputType)                    :: InitInp
+   integer(IntKi)                            :: j, k, i, na, iw
+   integer(IntKi)                            :: ErrStat2
+   character(ErrMsgLen)                      :: ErrMsg2
+   character(*), parameter                   :: RoutineName = 'Init_SmearCorr'
+
+   ErrStat = ErrID_None
+   ErrMsg  = ""
+
+   call SC_CopyInitInput( InputFileData%SC_Init, InitInp, MESH_NEWCOPY, ErrStat2, ErrMsg2 ); if (Failed()) return
+   InitInp%NumBlades = p%NumBlades
+   InitInp%NumBlNds  = p%NumBlNds
+   InitInp%DT        = p_AD%DT
+   call AllocAry( InitInp%chord, p%NumBlNds, p%NumBlades, 'InitInp%chord', ErrStat2, ErrMsg2 ); if (Failed()) return
+   call AllocAry( InitInp%NodePos, 3, p%NumBlNds, p%NumBlades, 'InitInp%NodePos', ErrStat2, ErrMsg2 ); if (Failed()) return
+   do k = 1, p%NumBlades
+      do j = 1, p%NumBlNds
+         InitInp%chord(j,k)     = p%BEMT%chord(j,k)
+         InitInp%NodePos(:,j,k) = real(u%BladeMotion(k)%Position(:,j), R8Ki)
+      end do
+   end do
+
+   if (InputFileData%SC_Init%SmearMod == SC_VBSC) then
+      call AllocAry( InitInp%twist, p%NumBlNds, p%NumBlades, 'InitInp%twist', ErrStat2, ErrMsg2 ); if (Failed()) return
+      call AllocAry( InitInp%AFindx, p%NumBlNds, p%NumBlades, 'InitInp%AFindx', ErrStat2, ErrMsg2 ); if (Failed()) return
+      do k = 1, p%NumBlades
+         do j = 1, p%NumBlNds
+            InitInp%twist(j,k)  = InputFileData%rotors(iR)%BladeProps(k)%BlTwist(j)
+            InitInp%AFindx(j,k) = p%BEMT%AFindx(j,k)
+         end do
+      end do
+      na = 0
+      do i = 1, size(p_AD%AFI)
+         na = na + p_AD%AFI(i)%Table(1)%NumAlf
+      end do
+      call AllocAry( InitInp%AFAlpha, na, 'InitInp%AFAlpha', ErrStat2, ErrMsg2 ); if (Failed()) return
+      call AllocAry( InitInp%AFCl, na, 'InitInp%AFCl', ErrStat2, ErrMsg2 ); if (Failed()) return
+      call AllocAry( InitInp%AFOffset, size(p_AD%AFI)+1, 'InitInp%AFOffset', ErrStat2, ErrMsg2 ); if (Failed()) return
+      iw = 0
+      do i = 1, size(p_AD%AFI)
+         InitInp%AFOffset(i) = iw + 1
+         do j = 1, p_AD%AFI(i)%Table(1)%NumAlf
+            iw = iw + 1
+            InitInp%AFAlpha(iw) = real(p_AD%AFI(i)%Table(1)%Alpha(j), R8Ki)
+            InitInp%AFCl(iw)    = real(p_AD%AFI(i)%Table(1)%Coefs(j, p_AD%AFI(i)%ColCl), R8Ki)
+         end do
+      end do
+      InitInp%AFOffset(size(p_AD%AFI)+1) = iw + 1
+   end if
+
+   call SC_Init( InitInp, p%SC, xd, m, ErrStat2, ErrMsg2 ); if (Failed()) return
+
+   if (p%SC%SmearMod == SC_FLLC) then
+      call WrScr( '   Smearing correction, rotor '//trim(num2lstr(iR))//': FLLC, SmearEps '//trim(num2lstr(p%SC%Eps))//' m, FLLCEpsChord '// &
+                  trim(num2lstr(p%SC%EpsChord))//', FLLCTau '//trim(num2lstr(p%SC%Tau))//' s, factor per step '//trim(num2lstr(p%SC%fRelax))// &
+                  ', SmearStart '//trim(num2lstr(p%SC%Start))//' s' )
+   else if (p%SC%SmearMod == SC_VBSC) then
+      call WrScr( '   Smearing correction, rotor '//trim(num2lstr(iR))//': VBSC, SmearEps '//trim(num2lstr(p%SC%Eps))//' m, '// &
+                  trim(num2lstr(p%SC%ns))//' sections per blade, VBSCMaxResid '//trim(num2lstr(p%SC%MaxResid))//', VBSCCircFilter '// &
+                  trim(merge('True ', 'False', p%SC%CircFilter))//', VBSCRelaxSafety '//trim(num2lstr(p%SC%RelaxSafety))// &
+                  ', SmearStart '//trim(num2lstr(p%SC%Start))//' s' )
+   end if
+
+   call Cleanup()
+
+contains
+   logical function Failed()
+      call SetErrStat( ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName )
+      Failed = ErrStat >= AbortErrLev
+      if (Failed) call Cleanup()
+   end function Failed
+   subroutine Cleanup()
+      call SC_DestroyInitInput( InitInp, ErrStat2, ErrMsg2 )
+   end subroutine Cleanup
+end subroutine Init_SmearCorr
+
+!----------------------------------------------------------------------------------------------------------------------------------
+subroutine SmearCorr_Advance( t, u, p, p_AD, x, xd, z, OtherState, m, ErrStat, ErrMsg )
+   real(DbKi),                   intent(in   ) :: t
+   type(RotInputType),           intent(in   ) :: u
+   type(RotParameterType),       intent(in   ) :: p
+   type(AD_ParameterType),       intent(in   ) :: p_AD
+   type(RotContinuousStateType), intent(in   ) :: x
+   type(RotDiscreteStateType),   intent(in   ) :: xd
+   type(RotConstraintStateType), intent(in   ) :: z
+   type(RotOtherStateType),      intent(in   ) :: OtherState
+   type(RotMiscVarType),         intent(inout) :: m
+   integer(IntKi),               intent(  out) :: ErrStat
+   character(*),                 intent(  out) :: ErrMsg
+
+   integer(IntKi)                              :: j, k
+   integer(IntKi)                              :: ErrStat2
+   character(ErrMsgLen)                        :: ErrMsg2
+   character(*), parameter                     :: RoutineName = 'SmearCorr_Advance'
+
+   ErrStat = ErrID_None
+   ErrMsg  = ""
+
+   if (p%SC%SmearMod == SC_FLLC) then
+      call BEMT_CalcOutput( t, m%BEMT_u(1), p%BEMT, x%BEMT, xd%BEMT, z%BEMT, OtherState%BEMT, p_AD%AFI, m%BEMT_y, m%BEMT, ErrStat2, ErrMsg2 )
+      call SetErrStat( ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName )
+      if (ErrStat >= AbortErrLev) return
+      do k = 1, p%NumBlades
+         do j = 1, p%NumBlNds
+            m%SC%W(:,j,k) = real(m%DisturbedInflow(:,j,k), R8Ki) - xd%SC%du(:,j,k) - real(u%BladeMotion(k)%TranslationVel(:,j), R8Ki)
+         end do
+      end do
+      call SmearCorr_BladeForce( p, u, m, m%SC%F )
+      call SC_FLLC_Update( t + p_AD%DT, p%SC, xd%SC%du, p%AirDens, m%SC )
+   end if
+
+end subroutine SmearCorr_Advance
+
+!----------------------------------------------------------------------------------------------------------------------------------
+subroutine SmearCorr_AdvanceVBSC( tNew, u, p, p_AD, xd, m, ErrStat, ErrMsg )
+   real(DbKi),                   intent(in   ) :: tNew
+   type(RotInputType),           intent(in   ) :: u
+   type(RotParameterType),       intent(in   ) :: p
+   type(AD_ParameterType),       intent(in   ) :: p_AD
+   type(RotDiscreteStateType),   intent(in   ) :: xd
+   type(RotMiscVarType),         intent(inout) :: m
+   integer(IntKi),               intent(  out) :: ErrStat
+   character(*),                 intent(  out) :: ErrMsg
+
+   integer(IntKi)                              :: j, k
+   integer(IntKi)                              :: ErrStat2
+   character(ErrMsgLen)                        :: ErrMsg2
+   character(*), parameter                     :: RoutineName = 'SmearCorr_AdvanceVBSC'
+   real(R8Ki)                                  :: hub(3), axis(3)
+   real(R8Ki)                                  :: pos(3,p%NumBlNds,p%NumBlades), solid(3,p%NumBlNds,p%NumBlades), wind(3,p%NumBlNds,p%NumBlades)
+   real(R8Ki)                                  :: nrm(3,p%NumBlNds,p%NumBlades), chd(3,p%NumBlNds,p%NumBlades)
+
+   ErrStat = ErrID_None
+   ErrMsg  = ""
+
+   call SC_CopyDiscState( xd%SC, m%SC%xdNew, MESH_UPDATECOPY, ErrStat2, ErrMsg2 )
+   call SetErrStat( ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName )
+   if (ErrStat >= AbortErrLev) return
+
+   do k = 1, p%NumBlades
+      do j = 1, p%NumBlNds
+         pos(:,j,k)   = real(u%BladeMotion(k)%Position(:,j), R8Ki) + real(u%BladeMotion(k)%TranslationDisp(:,j), R8Ki)
+         solid(:,j,k) = real(u%BladeMotion(k)%TranslationVel(:,j), R8Ki)
+         wind(:,j,k)  = real(m%DisturbedInflow(:,j,k), R8Ki)
+         nrm(:,j,k)   = real(u%BladeMotion(k)%Orientation(1,:,j), R8Ki)
+         chd(:,j,k)   = real(u%BladeMotion(k)%Orientation(2,:,j), R8Ki)
+      end do
+   end do
+   hub  = real(u%HubMotion%Position(:,1), R8Ki) + real(u%HubMotion%TranslationDisp(:,1), R8Ki)
+   axis = real(u%HubMotion%Orientation(1,:,1), R8Ki)
+   axis = axis / sqrt(dot_product(axis, axis))
+
+   call SC_VBSC_Update( tNew, p_AD%DT, p%SC, hub, axis, pos, solid, wind, nrm, chd, m%SC, ErrStat2, ErrMsg2 )
+   call SetErrStat( ErrStat2, ErrMsg2, ErrStat, ErrMsg, RoutineName )
+
+end subroutine SmearCorr_AdvanceVBSC
+
+!----------------------------------------------------------------------------------------------------------------------------------
+subroutine SmearCorr_BladeForce( p, u, m, F )
+   type(RotParameterType), intent(in   ) :: p
+   type(RotInputType),     intent(in   ) :: u
+   type(RotMiscVarType),   intent(in   ) :: m
+   real(R8Ki),             intent(  out) :: F(:,:,:)
+
+   integer(intKi)                        :: j, k
+   real(reki)                            :: force(3), forceAirfoil(3)
+   real(reki)                            :: q, aoa, Cl, Cd, Cxa, Cya
+
+   do k = 1, p%NumBlades
+      do j = 1, p%NumBlNds
+         aoa = m%BEMT_y%AOA(j,k)
+         Cl  = m%BEMT_y%cl(j,k)
+         Cd  = m%BEMT_y%cd(j,k)
+         Cxa =  Cl*cos(aoa) + Cd*sin(aoa)
+         Cya = -Cl*sin(aoa) + Cd*cos(aoa)
+         q = 0.5 * p%airDens * m%BEMT_y%Vrel(j,k)**2
+         forceAirfoil(1) = Cxa * q * p%BEMT%chord(j,k)
+         forceAirfoil(2) = Cya * q * p%BEMT%chord(j,k)
+         forceAirfoil(3) = 0.0_reki
+         force(1) =  m%BEMT_y%cx(j,k) * q * p%BEMT%chord(j,k)
+         force(2) = -m%BEMT_y%cy(j,k) * q * p%BEMT%chord(j,k)
+         force(3) =  m%BEMT_y%cz(j,k) * q * p%BEMT%chord(j,k)
+         if (p%BlFnScale(j,k) /= 1.0_ReKi .or. p%BlFtScale(j,k) /= 1.0_ReKi) then
+            forceAirfoil(1) = forceAirfoil(1) * p%BlFnScale(j,k)
+            forceAirfoil(2) = forceAirfoil(2) * p%BlFtScale(j,k)
+            force(1) =  cos(m%BEMT_u(1)%theta(j,k)) * forceAirfoil(1) + sin(m%BEMT_u(1)%theta(j,k)) * forceAirfoil(2)
+            force(2) = -sin(m%BEMT_u(1)%theta(j,k)) * forceAirfoil(1) + cos(m%BEMT_u(1)%theta(j,k)) * forceAirfoil(2)
+         end if
+         if (p%BEMT%BEM_Mod==BEMMod_2D) then
+            F(:,j,k) = real(matmul( force, m%orientationAnnulus(:,:,j,k) ), R8Ki)
+         else
+            F(:,j,k) = real(matmul( forceAirfoil, u%BladeMotion(k)%Orientation(:,:,j) ), R8Ki)
+         end if
+      end do
+   end do
+
+end subroutine SmearCorr_BladeForce
 !----------------------------------------------------------------------------------------------------------------------------------
 !> Disturbed inflow on the blade if tower shadow or tower influence are enabled
 subroutine SetDisturbedInflow(p, p_AD, u, RotInflow, m, errStat, errMsg)
@@ -4395,6 +4672,23 @@ SUBROUTINE ValidateInputData( InitInp, InputFileData, NumBl, calcCrvAngle, ErrSt
         ' or '//trim(num2lstr(WakeMod_FVW))//' (FVW).',ErrStat, ErrMsg, RoutineName ) 
    end if
    
+   if (InputFileData%SC_Init%SmearMod /= SC_None) then
+      if (InputFileData%SC_Init%SmearMod /= SC_FLLC .and. InputFileData%SC_Init%SmearMod /= SC_VBSC) &
+         call SetErrStat( ErrID_Fatal, 'SmearMod must be 0 (none), 1 (FLLC) or 2 (VBSC).', ErrStat, ErrMsg, RoutineName )
+      if (InputFileData%SC_Init%SmearMod == SC_VBSC .and. InputFileData%AFTabMod /= AFITable_1) &
+         call SetErrStat( ErrID_Fatal, 'SmearMod 2 (VBSC) needs AFTabMod 1.', ErrStat, ErrMsg, RoutineName )
+      if (InputFileData%Wake_Mod /= WakeMod_None) &
+         call SetErrStat( ErrID_Fatal, 'SmearMod 1 or 2 needs Wake_Mod 0.', ErrStat, ErrMsg, RoutineName )
+      if (InputFileData%SectAvg) &
+         call SetErrStat( ErrID_Fatal, 'SmearMod 1 or 2 needs SectAvg False.', ErrStat, ErrMsg, RoutineName )
+      if (InitInp%Linearize) &
+         call SetErrStat( ErrID_Fatal, 'SmearMod must be 0 for linearization.', ErrStat, ErrMsg, RoutineName )
+      if (InitInp%MHK /= MHK_None) &
+         call SetErrStat( ErrID_Fatal, 'SmearMod must be 0 for an MHK turbine.', ErrStat, ErrMsg, RoutineName )
+      if (.not. (InputFileData%SC_Init%Eps > 0.0_ReKi)) &
+         call SetErrStat( ErrID_Fatal, 'SmearEps must be greater than 0 when SmearMod is 1 or 2.', ErrStat, ErrMsg, RoutineName )
+   end if
+
    if (InputFileData%TwrPotent /= TwrPotent_none .and. InputFileData%TwrPotent /= TwrPotent_baseline .and. InputFileData%TwrPotent /= TwrPotent_Bak) then
       call SetErrStat ( ErrID_Fatal, 'TwrPotent must be 0 (none), 1 (baseline potential flow), or 2 (potential flow with Bak correction).', ErrStat, ErrMsg, RoutineName ) 
    end if   

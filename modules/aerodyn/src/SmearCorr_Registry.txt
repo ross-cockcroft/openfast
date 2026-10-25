@@ -1,0 +1,125 @@
+###################################################################################################################################
+# Registry for SmearCorr, the smearing corrections of an actuator line driven by an external flow solver, in AeroDyn.
+# FLLC: filtered lifting-line correction (Martinez-Tossas and Meneveau 2019, Martinez-Tossas 2024).
+# VBSC: vortex-based smearing correction (Meyer Forsting, Pirrung and Ramos-Garcia 2019).
+#
+# Entries are of the form
+# <keyword>   <ModuleName/ModName>   <TypeName>   <FieldType>   <FieldName>   <Dims>   <IO>   <DNAME>   <DESCRIP>   <UNITS>
+###################################################################################################################################
+include   Registry_NWTC_Library.txt
+
+param     SmearCorr/SC   -   IntKi   SC_None   -   0   -   "No smearing correction"   -
+param     ^              -   IntKi   SC_FLLC   -   1   -   "Filtered lifting-line correction"   -
+param     ^              -   IntKi   SC_VBSC   -   2   -   "Vortex-based smearing correction"   -
+
+# ..... Initialization data .......................................................................................................
+typedef   SmearCorr/SC   InitInputType   IntKi     SmearMod        -        0        -   "Smearing correction {0=none, 1=FLLC, 2=VBSC}"   -
+typedef   ^              ^               ReKi      Eps             -        0        -   "Gaussian width of the force kernel of the flow solver"   m
+typedef   ^              ^               DbKi      Start           -        0        -   "Time before which the correction is zero"   s
+typedef   ^              ^               ReKi      EpsChord        -        0.25     -   "FLLC target kernel width over chord"   -
+typedef   ^              ^               ReKi      Tau             -        0        -   "FLLC relaxation time"   s
+typedef   ^              ^               ReKi      MaxResid        -        1.0e-6   -   "VBSC residual of the circulation iteration"   -
+typedef   ^              ^               Logical   CircFilter      -        .true.   -   "VBSC circulation filter"   -
+typedef   ^              ^               ReKi      RelaxSafety     -        0.2      -   "VBSC start value of the relaxation safety term"   -
+typedef   ^              ^               Logical   Shed            -        .false.  -   "VBSC shed-vorticity part"   -
+typedef   ^              ^               Logical   ShedPitchRate   -        .false.  -   "VBSC pitch-rate part of the shed term"   -
+typedef   ^              ^               IntKi     NumBlades       -        0        -   "Number of blades"   -
+typedef   ^              ^               IntKi     NumBlNds        -        0        -   "Number of nodes per blade"   -
+typedef   ^              ^               DbKi      DT              -        0        -   "Time step of the state update"   s
+typedef   ^              ^               ReKi      chord           {:}{:}   -        -   "Chord at each node, (node, blade)"   m
+typedef   ^              ^               R8Ki      NodePos         {:}{:}{:}   -     -   "Reference position of each node, (component, node, blade)"   m
+typedef   ^              ^               ReKi      twist           {:}{:}   -        -   "Twist at each node, (node, blade)"   rad
+typedef   ^              ^               IntKi     AFindx          {:}{:}   -        -   "Airfoil index of each node, (node, blade)"   -
+typedef   ^              ^               R8Ki      AFAlpha         {:}      -        -   "Angle of attack of every airfoil table, one after the other"   rad
+typedef   ^              ^               R8Ki      AFCl            {:}      -        -   "Lift coefficient of every airfoil table, one after the other"   -
+typedef   ^              ^               IntKi     AFOffset        {:}      -        -   "Start of each airfoil table in AFAlpha and AFCl, one more entry than airfoils"   -
+
+# ..... Parameters ................................................................................................................
+typedef   ^              ParameterType   IntKi     SmearMod        -        0        -   "Smearing correction {0=none, 1=FLLC, 2=VBSC}"   -
+typedef   ^              ^               ReKi      Eps             -        0        -   "Gaussian width of the force kernel of the flow solver"   m
+typedef   ^              ^               DbKi      Start           -        0        -   "Time before which the correction is zero"   s
+typedef   ^              ^               ReKi      EpsChord        -        0.25     -   "FLLC target kernel width over chord"   -
+typedef   ^              ^               ReKi      Tau             -        0        -   "FLLC relaxation time"   s
+typedef   ^              ^               R8Ki      fRelax          -        0        -   "FLLC relaxation factor per state update, 1-exp(-DT/Tau)"   -
+typedef   ^              ^               ReKi      MaxResid        -        1.0e-6   -   "VBSC residual of the circulation iteration"   -
+typedef   ^              ^               Logical   CircFilter      -        .true.   -   "VBSC circulation filter"   -
+typedef   ^              ^               ReKi      RelaxSafety     -        0.2      -   "VBSC start value of the relaxation safety term"   -
+typedef   ^              ^               Logical   Shed            -        .false.  -   "VBSC shed-vorticity part"   -
+typedef   ^              ^               Logical   ShedPitchRate   -        .false.  -   "VBSC pitch-rate part of the shed term"   -
+typedef   ^              ^               IntKi     NumBlades       -        0        -   "Number of blades"   -
+typedef   ^              ^               IntKi     NumBlNds        -        0        -   "Number of nodes per blade"   -
+typedef   ^              ^               DbKi      DT              -        0        -   "Time step of the state update"   s
+typedef   ^              ^               R8Ki      chord           {:}{:}   -        -   "Chord at each node after the vanishing-tip fix, (node, blade)"   m
+typedef   ^              ^               R8Ki      dz              {:}{:}   -        -   "Spanwise width of each node, (node, blade)"   m
+typedef   ^              ^               R8Ki      kLes            {:}{:}{:}   -     -   "FLLC kernel at the flow-solver width, (receiver, source, blade)"   1/m^2
+typedef   ^              ^               R8Ki      kOpt            {:}{:}{:}   -     -   "FLLC kernel at the target width, (receiver, source, blade)"   1/m^2
+typedef   ^              ^               Logical   SharpTip        -        .false.  -   "Tip chord below 0.005 of the largest chord"   -
+typedef   ^              ^               Logical   Resolved        {:}{:}   -        -   "Node whose target width is above the sharp-tip floor, (node, blade)"   -
+typedef   ^              ^               IntKi     ns              -        0        -   "VBSC sections per blade, between consecutive nodes"   -
+typedef   ^              ^               IntKi     ne              -        0        -   "VBSC trailing points per blade, at the nodes"   -
+typedef   ^              ^               R8Ki      secT            {:}{:}   -        -   "Position of each section between its two nodes, (section, blade)"   -
+typedef   ^              ^               IntKi     velLo           {:}{:}   -        -   "Section below each node for the correction, (node, blade)"   -
+typedef   ^              ^               R8Ki      velT            {:}{:}   -        -   "Weight of the section above each node, (node, blade)"   -
+typedef   ^              ^               R8Ki      secChord        {:}{:}   -        -   "Chord at each section, (section, blade)"   m
+typedef   ^              ^               R8Ki      secTwist        {:}{:}   -        -   "Twist at each section, (section, blade)"   rad
+typedef   ^              ^               R8Ki      shedWeight      {:}{:}{:}   -     -   "Shed-term weights, (term, section, blade)"   -
+typedef   ^              ^               R8Ki      shedRate        {:}{:}{:}   -     -   "Shed-term rates, (term, section, blade)"   -
+typedef   ^              ^               R8Ki      liftAlpha       {:}      -        -   "Angle of attack of the section lift tables, one after the other"   rad
+typedef   ^              ^               R8Ki      liftCl          {:}      -        -   "Lift coefficient of the section lift tables, one after the other"   -
+typedef   ^              ^               IntKi     liftOffset      {:}      -        -   "Start of the table of section s on blade k at index (k-1)*ns+s, one more entry"   -
+
+# ..... States ....................................................................................................................
+typedef   ^              DiscreteStateType   R8Ki   du             {:}{:}{:}   -     -   "Velocity correction added to the inflow, (component, node, blade)"   m/s
+typedef   ^              ^               R8Ki      vn              {:}{:}   -        -   "VBSC induced axial velocity, (section, blade)"   m/s
+typedef   ^              ^               R8Ki      vt              {:}{:}   -        -   "VBSC induced tangential velocity, (section, blade)"   m/s
+typedef   ^              ^               R8Ki      wake            {:}{:}   -        -   "VBSC induced velocity magnitude, (section, blade)"   m/s
+typedef   ^              ^               R8Ki      steady          {:}{:}   -        -   "VBSC steady circulation, (section, blade)"   m^2/s
+typedef   ^              ^               R8Ki      filter          {:}{:}{:}   -     -   "VBSC circulation filter states, (term, section, blade)"   m^2/s
+typedef   ^              ^               R8Ki      attack          {:}{:}   -        -   "VBSC angle of attack, (section, blade)"   rad
+typedef   ^              ^               R8Ki      shedFilt        {:}{:}{:}   -     -   "VBSC shed filter states, (term, section, blade)"   -
+typedef   ^              ^               R8Ki      shedLift        {:}{:}   -        -   "VBSC shed lift coefficient, (section, blade)"   -
+typedef   ^              ^               R8Ki      shedAngle       {:}{:}   -        -   "VBSC shed angle, (section, blade)"   rad
+typedef   ^              ^               R8Ki      shedReady       {:}      -        -   "VBSC shed states set when 1, (blade)"   -
+typedef   ^              ^               R8Ki      relaxSafety     -        0.2      -   "VBSC relaxation safety term"   -
+typedef   ^              ^               R8Ki      rEdge           {:}{:}   -        -   "Radius of each trailing point at the last rebuild, (edge, blade)"   m
+typedef   ^              ^               R8Ki      axialEdge       {:}{:}   -        -   "Axial position of each trailing point at the last rebuild, (edge, blade)"   m
+typedef   ^              ^               R8Ki      rSection        {:}{:}   -        -   "Radius of each section at the last rebuild, (section, blade)"   m
+typedef   ^              ^               R8Ki      axialSection    {:}{:}   -        -   "Axial position of each section at the last rebuild, (section, blade)"   m
+typedef   ^              ^               R8Ki      slowWake        {:}{:}   -        -   "Slow wake history of each pair, (pair, blade)"   m/s
+typedef   ^              ^               R8Ki      fastWake        {:}{:}   -        -   "Fast wake history of each pair, (pair, blade)"   m/s
+
+# ..... Misc ......................................................................................................................
+typedef   ^              MiscVarType     R8Ki      duNew           {:}{:}{:}   -     -   "Correction at the end of the current state update, (component, node, blade)"   m/s
+typedef   ^              ^               R8Ki      W               {:}{:}{:}   -     -   "Relative velocity without the correction, (component, node, blade)"   m/s
+typedef   ^              ^               R8Ki      F               {:}{:}{:}   -     -   "Aerodynamic force per unit length on the blade, (component, node, blade)"   N/m
+typedef   ^              ^               R8Ki      G               {:}{:}   -        -   "Lift per unit length over density at the nodes of one blade, (component, node)"   m^2/s^2
+typedef   ^              ^               R8Ki      Umag            {:}      -        -   "Relative speed at the nodes of one blade"   m/s
+typedef   ^              ^               R8Ki      Smooth          {:}{:}   -        -   "Scratch for the sharp-tip smoother, (component, node)"   m/s
+typedef   ^              ^               IntKi     nUpdates        -        0        -   "Number of state updates with the correction active"   -
+typedef   ^              ^               SC_DiscreteStateType   xdNew   -   -   -   "States at the end of the current state update"   -
+typedef   ^              ^               Logical   dValid          {:}      -        -   "Derived pair tables match the state geometry, (blade)"   -
+typedef   ^              ^               R8Ki      dREdge          {:}{:}   -        -   "rEdge the derived tables were built for, (edge, blade)"   m
+typedef   ^              ^               R8Ki      dAxialEdge      {:}{:}   -        -   "axialEdge the derived tables were built for, (edge, blade)"   m
+typedef   ^              ^               R8Ki      dRSection       {:}{:}   -        -   "rSection the derived tables were built for, (section, blade)"   m
+typedef   ^              ^               R8Ki      dAxialSection   {:}{:}   -        -   "axialSection the derived tables were built for, (section, blade)"   m
+typedef   ^              ^               R8Ki      edgeSecW        {:}{:}   -        -   "Weight of the outer section at each trailing point, (edge, blade)"   -
+typedef   ^              ^               IntKi     secFirst        {:}{:}   -        -   "First section within the cutoff of each trailing point, (edge, blade)"   -
+typedef   ^              ^               IntKi     secCount        {:}{:}   -        -   "Sections within the cutoff of each trailing point, (edge, blade)"   -
+typedef   ^              ^               IntKi     pairBegin       {:}{:}   -        -   "First pair of each trailing point, one more entry, (edge, blade)"   -
+typedef   ^              ^               R8Ki      circPhi         {:}{:}   -        -   "Circular helix decay of each pair, (pair, blade)"   -
+typedef   ^              ^               R8Ki      straightPhi     {:}{:}   -        -   "Straight wake decay of each pair, (pair, blade)"   -
+typedef   ^              ^               R8Ki      slowAmp         {:}{:}   -        -   "Slow amplitude of each pair, (pair, blade)"   1/m^2
+typedef   ^              ^               R8Ki      fastAmp         {:}{:}   -        -   "Fast amplitude of each pair, (pair, blade)"   1/m^2
+typedef   ^              ^               R8Ki      radiusRatio     {:}{:}   -        -   "Radius offset over trailing-point radius of each pair, (pair, blade)"   -
+typedef   ^              ^               R8Ki      helixFit        {:}{:}{:}   -     -   "Helix fit coefficients of each pair, (coefficient, pair, blade)"   -
+typedef   ^              ^               R8Ki      planarSmear     {:}{:}   -        -   "In-plane smearing factor of each pair, (pair, blade)"   -
+typedef   ^              ^               R8Ki      axialOff2       {:}{:}   -        -   "Squared axial offset over width squared of each pair, (pair, blade)"   -
+typedef   ^              ^               R8Ki      ownPhi          {:}{:}{:}   -     -   "Decay of the two own trailing points, (point, section, blade)"   -
+typedef   ^              ^               R8Ki      ownSlow         {:}{:}{:}   -     -   "Slow amplitude of the two own trailing points, (point, section, blade)"   1/m^2
+typedef   ^              ^               R8Ki      ownFast         {:}{:}{:}   -     -   "Fast amplitude of the two own trailing points, (point, section, blade)"   1/m^2
+typedef   ^              ^               IntKi     unconvSolves    -        0        -   "VBSC blade solves that did not converge"   -
+typedef   ^              ^               IntKi     unconvSteps     -        0        -   "VBSC state updates with an unconverged blade solve"   -
+typedef   ^              ^               IntKi     rebuilds        -        0        -   "VBSC pair-table rebuilds after the first"   -
+typedef   ^              ^               IntKi     maxIter         -        0        -   "Largest VBSC iteration count"   -
+typedef   ^              ^               IntKi     sumIter         -        0        -   "Sum of VBSC iteration counts"   -
+typedef   ^              ^               IntKi     nSolves         -        0        -   "Number of VBSC blade solves"   -

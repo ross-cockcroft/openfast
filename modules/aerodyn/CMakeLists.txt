@@ -21,6 +21,7 @@ if (GENERATE_TYPES)
   generate_f90_types(src/AeroDyn_Inflow_C_Binding_Registry.txt ${CMAKE_CURRENT_LIST_DIR}/src/AeroDyn_Inflow_C_Binding_Types.f90 -noextrap)
   generate_f90_types(src/AirfoilInfo_Registry.txt ${CMAKE_CURRENT_LIST_DIR}/src/AirfoilInfo_Types.f90 -noextrap)
   generate_f90_types(src/BEMT_Registry.txt ${CMAKE_CURRENT_LIST_DIR}/src/BEMT_Types.f90)
+  generate_f90_types(src/SmearCorr_Registry.txt ${CMAKE_CURRENT_LIST_DIR}/src/SmearCorr_Types.f90 -noextrap)
   generate_f90_types(src/DBEMT_Registry.txt ${CMAKE_CURRENT_LIST_DIR}/src/DBEMT_Types.f90)
   generate_f90_types(src/UnsteadyAero_Registry.txt ${CMAKE_CURRENT_LIST_DIR}/src/UnsteadyAero_Types.f90)
   generate_f90_types(src/AeroDyn_Driver_Registry.txt ${CMAKE_CURRENT_LIST_DIR}/src/AeroDyn_Driver_Types.f90 -noextrap)
@@ -61,6 +62,8 @@ add_library(aerodynlib STATIC
   src/AeroDyn_Types.f90
   src/BEMT_Types.f90
   src/DBEMT_Types.f90
+  src/SmearCorr.f90
+  src/SmearCorr_Types.f90
 
   # FVW lib
   src/FVW.f90
