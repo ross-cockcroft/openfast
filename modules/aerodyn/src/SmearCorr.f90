@@ -20,7 +20,6 @@ module SmearCorr
    real(R8Ki), parameter :: VB_HalfPi         = 0.5_R8Ki * VB_Pi
    real(R8Ki), parameter :: VB_CoreCutoff     = 1.82_R8Ki
    real(R8Ki), parameter :: VB_MinRootRadius  = 0.1_R8Ki
-   real(R8Ki), parameter :: VB_RebuildTol     = 1.0e-5_R8Ki
    real(R8Ki), parameter :: VB_SeriesLimit    = 4.0e-3_R8Ki
    real(R8Ki), parameter :: VB_SlowAmplitude  = 1.359_R8Ki
    real(R8Ki), parameter :: VB_FastAmplitude  = -0.359_R8Ki / 4.0_R8Ki
@@ -740,7 +739,7 @@ subroutine VBSC_Refresh(p, k, rEdgeNow, axialEdgeNow, rSecNow, axialSecNow, m, E
          moved = max(moved, abs(rSecNow(s) - m%xdNew%rSection(s,k)))
          moved = max(moved, abs(axialSecNow(s) - m%xdNew%axialSection(s,k)))
       end do
-      if (.not. (moved > VB_RebuildTol * m%xdNew%rEdge(ne,k))) return
+      if (.not. (moved > 0.0_R8Ki)) return
       m%rebuilds = m%rebuilds + 1
       oldFirst = m%secFirst(:,k)
       oldCount = m%secCount(:,k)
@@ -1090,7 +1089,7 @@ contains
             else
                projection = sinH(s)
             end if
-            residual = max(residual, abs((iter(s) - m%xdNew%wake(s,k)) * projection))
+            residual = max(residual, abs(iter(s) - m%xdNew%wake(s,k)) * projection)
          end do
 
          iteration = iteration + 1
